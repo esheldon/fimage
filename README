@@ -1,0 +1,9 @@
+Code for creating fake images of astronomical objects.
+
+Includes code to create exponentials, dev, gaussian profiles.  Includes code to
+create convolved images using numpy.
+
+There is some basic code for doing unweighted statistics, for quick tests,
+(you might use https://github.com/esheldon/admom for more detailed studies).
+
+This code is still evolving, write more here...

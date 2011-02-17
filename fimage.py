@@ -8,7 +8,7 @@ _emap={1:'invalid model',2:'determinant <= 0'}
 
 def model_image(model, dims, cen, covar,
                 counts=1.0, sub=True, order='f',
-                nsub=16):
+                nsub=4, old=False):
     """
     Create in image with the specified model using sub-pixel integration
 
@@ -118,10 +118,13 @@ def model_image(model, dims, cen, covar,
     # note offsetting the dimensions for fortran indexing
 
     Irr,Irc,Icc=covar
-    if nsub == 64:
-        flag=_fimage.model_f4image_sub64(modelnum,imf,cen[0]+1,cen[1]+1,Irr,Irc,Icc,sub)
+    if old:
+        if nsub == 8:
+            flag=_fimage.model_f4image_sub8(modelnum,imf,cen[0]+1,cen[1]+1,Irr,Irc,Icc,sub)
+        else:
+            flag=_fimage.model_f4image_sub4(modelnum,imf,cen[0]+1,cen[1]+1,Irr,Irc,Icc,sub)
     else:
-        flag=_fimage.model_f4image(modelnum,imf,cen[0]+1,cen[1]+1,Irr,Irc,Icc,sub)
+        flag=_fimage.model_f4image_subpixel(modelnum,imf,cen[0]+1,cen[1]+1,Irr,Irc,Icc,nsub)
 
     if flag != 0:
         flagstring = _emap.get(flag, 'unknown error')

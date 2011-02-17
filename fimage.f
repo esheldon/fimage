@@ -58,12 +58,15 @@ c vim: set filetype=fortran et ts=2 sw=2 sts=2 :
 
       integer*4 i,j, ii, jj
 
-      real val,isum,xxsum,yysum,xysum
+      real val
+c      real isum,xsum,ysum,xxsum,yysum,xysum
 
-      isum=0
-      xxsum=0
-      yysum=0
-      xysum=0
+c      isum=0
+c      xsum=0
+c      ysum=0
+c      xxsum=0
+c      yysum=0
+c      xysum=0
 
       flag=0
       expon=0 ! to shut up the warnings
@@ -114,10 +117,12 @@ c vim: set filetype=fortran et ts=2 sw=2 sts=2 :
                   val = exp(-expon)
                   sum = sum + val
 
-                  isum=isum+val
-                  xxsum=xxsum + val*xx*xx
-                  xysum=xysum + val*xx*yy
-                  yysum=yysum + val*yy*yy
+c                  isum=isum+val
+c                  xsum=xsum + val*(xx+xcen)
+c                  ysum=ysum + val*(yy+ycen)
+c                  xxsum=xxsum + val*xx*xx
+c                  xysum=xysum + val*xx*yy
+c                  yysum=yysum + val*yy*yy
                 endif
 
                 yy = yy + 0.25
@@ -149,9 +154,13 @@ c vim: set filetype=fortran et ts=2 sw=2 sts=2 :
       enddo ! x indices
       
 
-      print *,"measured Ixx:",xxsum/isum
-      print *,"measured Ixy:",xysum/isum
-      print *,"measured Iyy:",yysum/isum
+
+c      print *,"measured <x>:",xsum/isum
+c      print *,"measured <y>:",ysum/isum
+
+c      print *,"measured Ixx:",xxsum/isum
+c      print *,"measured Ixy:",xysum/isum
+c      print *,"measured Iyy:",yysum/isum
 
       return
       end

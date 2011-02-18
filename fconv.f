@@ -1,6 +1,6 @@
       ! vim: set filetype=fortran et ts=2 sw=2 sts=2 :
 
-      function gaussconvf4image(image,nx,ny,ixx,ixy,iyy,imageout)
+      function gaussconv_f4(image,nx,ny,ixx,ixy,iyy,imageout)
      &result(flag)
 
       ! convolve the image with a gaussian.   The scipy convolve

@@ -136,7 +136,7 @@ def model_image(model, dims, cen, covar,
 
 
 def double_gauss(dims, cen, cenrat, covar1,covar2,
-                 counts=1.0, all=False):
+                 nsub=4, counts=1.0, all=False):
     """
     Make a double gaussian image.
 
@@ -156,6 +156,10 @@ def double_gauss(dims, cen, cenrat, covar1,covar2,
         where r->row c->column
     covar2: sequence
         The covariane matrix of the second gaussian.
+
+    nsub: integer, optional
+        The size of the sub-pixel grid used to integrate the model.  Default
+        is 4.  Send 1 for no sub-pixel integration.
 
     counts: scalar, optional
         The total counts in the image.  Default 1.0
@@ -199,21 +203,11 @@ def double_gauss(dims, cen, cenrat, covar1,covar2,
         raise ValueError("determinat of second covariance matrix is 0")
     s2 = numpy.sqrt( det2/det1 )
 
-    im1 = model_image('gauss',dims,cen,covar1)
-    im2 = model_image('gauss',dims,cen,covar2)
+    im1 = model_image('gauss',dims,cen,covar1,nsub=nsub)
+    im2 = model_image('gauss',dims,cen,covar2,nsub=nsub)
 
     im = im1 + b*s2*im2
     im /= (1+b*s2)
 
     return im
 
-def compare_imsim(model, dims, cen, Irr, Irc, Icc, counts=1.0):
-    # compare straight up and to rebinned higher res image
-    import imsim
-    import images
-    im = makeimage(model,dims,cen,Irr,Irc,Icc,counts=counts)
-
-    # regular imsi
-    im_imsim=imsim.mom2disk(model, Irr, Irc, Icc, dims, cen=cen, counts=counts)
-
-    images.compare_images(im, im_imsim,label1='fimage',label2='imsim')

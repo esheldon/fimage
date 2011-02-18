@@ -5,7 +5,7 @@ from numpy import sqrt, exp, array
 import images
 
 from . import stat
-from . import fimage
+from . import pixmodel
 from . import fconv
 from . import analytic
 from . import conversions
@@ -76,7 +76,7 @@ class ConvolvedImage(dict):
         T = 2*max(covar)
         dims,cen = self.getdimcen(T)
 
-        self.psf = fimage.model_image('gauss',dims,cen,covar, sub=True)
+        self.psf = pixmodel.model_image('gauss',dims,cen,covar, sub=True)
 
         pars['dims'] = dims
         pars['cen'] = cen
@@ -105,7 +105,7 @@ class ConvolvedImage(dict):
         else:
             dims,cen = self.getdimcen(Tmax)
 
-        self.psf = fimage.double_gauss(dims,cen,cenrat,covar1,covar2)
+        self.psf = pixmodel.double_gauss(dims,cen,cenrat,covar1,covar2)
         det1=conversions.cov2det(covar1)
         det2=conversions.cov2det(covar2)
         pars['s2'] = sqrt(det2/det1)
@@ -152,7 +152,7 @@ class ConvolvedImage(dict):
         Texp = 2*max(Irr_exp,Icc_exp)
         dims, cen = self.getdimcen(Texp, sigfac=sigfac)
 
-        self.image0 = fimage.model_image(objmodel,dims,cen,covar,sub=True,
+        self.image0 = pixmodel.model_image(objmodel,dims,cen,covar,sub=True,
                                          counts=pars['counts'])
 
         pars['dims'] = dims
@@ -198,7 +198,7 @@ class ConvolvedImage(dict):
                      ocovar[1]+pcovar[1],
                      ocovar[2]+pcovar[2]]
 
-            image = fimage.model_image('gauss',dims,cen,covar,sub=True,
+            image = pixmodel.model_image('gauss',dims,cen,covar,sub=True,
                                        counts=pars['counts'])
         else:
             if not have_scipy:
@@ -557,7 +557,7 @@ def test_func_convolver(epsabs=1.4899999999999999e-08, epsrel=1.4899999999999999
     '''
 
 
-    #imdg2 = fimage.double_gauss(dims,cen,cenrat,
+    #imdg2 = pixmodel.double_gauss(dims,cen,cenrat,
     #                            sigma1**2, 0.0, sigma1**2,
     #                            sigma2**2, 0.0, sigma2**2)
 

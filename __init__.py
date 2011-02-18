@@ -1,6 +1,6 @@
-from . import pixel
-from .pixel import model_image
-from .pixel import double_gauss
+from . import pixmodel
+from .pixmodel import model_image
+from .pixmodel import double_gauss
 
 from . import convolved
 from .convolved import ConvolvedImage

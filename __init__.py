@@ -1,6 +1,6 @@
-from . import fimage
-from .fimage import model_image
-from .fimage import double_gauss
+from . import pixel
+from .pixel import model_image
+from .pixel import double_gauss
 
 from . import convolved
 from .convolved import ConvolvedImage

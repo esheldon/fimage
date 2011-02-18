@@ -4,11 +4,10 @@ import numpy
 import _fimage
 
 _tmap={'gauss':1,'exp':2,'dev':3}
-_emap={1:'invalid model',2:'determinant <= 0'}
+_emap={0:'ok',2**0:'invalid model',2**1:'determinant <= 0',2**2:'invalid nsub'}
 
 def model_image(model, dims, cen, covar,
-                counts=1.0, sub=True, order='f',
-                nsub=4, old=False):
+                nsub=4, counts=1.0, order='f'):
     """
     Create in image with the specified model using sub-pixel integration
 
@@ -32,8 +31,10 @@ def model_image(model, dims, cen, covar,
         The total counts in the image.  Default 1.0.  If None, the image is not
         normalized. 
 
-    sub: boolean
-        If False, don't use sub-pixel integration.  default is True
+    nsub: integer, optional
+        The size of the sub-pixel grid used to integrate the model.  Default
+        is 4.  Send 1 for no sub-pixel integration.
+
     order: string
         Send either 'c' for C order or 'f' for fortran order.  By
         default the result is fortran since the data is created
@@ -118,13 +119,7 @@ def model_image(model, dims, cen, covar,
     # note offsetting the dimensions for fortran indexing
 
     Irr,Irc,Icc=covar
-    if old:
-        if nsub == 8:
-            flag=_fimage.model_f4image_sub8(modelnum,imf,cen[0]+1,cen[1]+1,Irr,Irc,Icc,sub)
-        else:
-            flag=_fimage.model_f4image_sub4(modelnum,imf,cen[0]+1,cen[1]+1,Irr,Irc,Icc,sub)
-    else:
-        flag=_fimage.model_f4image_subpixel(modelnum,imf,cen[0]+1,cen[1]+1,Irr,Irc,Icc,nsub)
+    flag=_fimage.model_f4image(modelnum,imf,cen[0]+1,cen[1]+1,Irr,Irc,Icc,nsub)
 
     if flag != 0:
         flagstring = _emap.get(flag, 'unknown error')

@@ -10,6 +10,8 @@ from . import fconv
 from . import analytic
 from . import conversions
 
+import admom
+
 try:
     import scipy.signal
     have_scipy=True
@@ -64,6 +66,13 @@ class ConvolvedImage(dict):
         else:
             raise ValueError("unknown model type: '%s'" % psfmodel)
 
+        cen = self.psfpars['cen']
+        tcovar = stat.second_moments(self.psf, cen)
+        res = admom.admom(self.psf, cen[0],cen[1], guess=(tcovar[0]+tcovar[2])/2))
+        covar_meas = array([res['Irr'],res['Irc'],res['Icc']])
+        pars['covar_meas'] = covar_meas
+        self['covar_psf'] = covar_meas
+
         if self.verbose:
             print("PSF model")
             pprint(self.psfpars)
@@ -76,14 +85,10 @@ class ConvolvedImage(dict):
         T = 2*max(covar)
         dims,cen = self.getdimcen(T)
 
-        self.psf = pixmodel.model_image('gauss',dims,cen,covar, sub=True)
+        self.psf = pixmodel.model_image('gauss',dims,cen,covar)
 
         pars['dims'] = dims
         pars['cen'] = cen
-
-        covar_meas = stat.second_moments(self.psf, cen)
-        pars['covar_meas'] = covar_meas
-        self['covar_psf'] = covar_meas
 
         if self.conv == 'func':
             self.psf_func=analytic.Gauss(covar)
@@ -112,10 +117,6 @@ class ConvolvedImage(dict):
 
         pars['dims'] = dims
         pars['cen'] = cen
-
-        covar = stat.second_moments(self.psf, cen)
-        pars['covar_meas'] = covar
-        self['covar_psf'] = covar
 
         if self.conv == 'func':
             self.psf_func=analytic.DoubleGauss(cenrat,covar1,covar2)
@@ -152,12 +153,14 @@ class ConvolvedImage(dict):
         Texp = 2*max(Irr_exp,Icc_exp)
         dims, cen = self.getdimcen(Texp, sigfac=sigfac)
 
-        self.image0 = pixmodel.model_image(objmodel,dims,cen,covar,sub=True,
+        self.image0 = pixmodel.model_image(objmodel,dims,cen,covar,
                                          counts=pars['counts'])
 
         pars['dims'] = dims
         pars['cen'] = cen
-        covar_meas = stat.second_moments(self.image0, cen)
+        tcovar = stat.second_moments(self.image0, cen)
+        res = admom.admom(self.image0, cen[0],cen[1], guess=(tcovar[0]+tcovar[1])/2 )
+        covar_meas = array([res['Irr'],res['Irc'],res['Icc']])
         pars['covar_meas'] = covar_meas
         self['covar_image0'] = covar_meas
 
@@ -171,6 +174,9 @@ class ConvolvedImage(dict):
                 raise ValueError("only support objmodel gauss or exp for "
                                  "slow convolution")
 
+        if self.verbose:
+            print("image0 pars")
+            pprint(self.objpars)
 
 
     def make_image(self):
@@ -198,7 +204,7 @@ class ConvolvedImage(dict):
                      ocovar[1]+pcovar[1],
                      ocovar[2]+pcovar[2]]
 
-            image = pixmodel.model_image('gauss',dims,cen,covar,sub=True,
+            image = pixmodel.model_image('gauss',dims,cen,covar,
                                        counts=pars['counts'])
         else:
             if not have_scipy:
@@ -215,6 +221,7 @@ class ConvolvedImage(dict):
                         print("  Trimming back to requested size")
                     image = image[ 0:dims[0], 0:dims[1] ]
             elif self.conv == 'fconv':
+                print("running fconv")
                 if psfmodel == 'gauss':
                     image = fconv.gaussconv(self.image0, psfpars['covar'])
                 elif psfmodel == 'dgauss':
@@ -246,10 +253,15 @@ class ConvolvedImage(dict):
         if bothgauss:
             covar_meas = array(pars['covar']) + array(psfpars['covar'])
         else:
-            covar_meas = stat.second_moments(self.image, cen)
+            tcovar = stat.second_moments(self.image, cen)
+            res = admom.admom(self.image, cen[0],cen[1], guess=(tcovar[0]+tcovar[2])/2))
+            covar_meas = array([res['Irr'],res['Irc'],res['Icc']])
 
         self['covar'] = covar_meas
 
+        if self.verbose:
+            print("convolved image pars")
+            pprint(self)
 
     def mom2sigma(self, T):
         return sqrt(T/2)

@@ -6,8 +6,7 @@ import _fimage
 _tmap={'gauss':1,'exp':2,'dev':3}
 _emap={0:'ok',2**0:'invalid model',2**1:'determinant <= 0',2**2:'invalid nsub'}
 
-def model_image(model, dims, cen, covar,
-                nsub=4, counts=1.0, order='f'):
+def model_image(model, dims, cen, covar, nsub=4, counts=1.0, order='f'):
     """
     Create in image with the specified model using sub-pixel integration
 

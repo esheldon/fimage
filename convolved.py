@@ -68,7 +68,7 @@ class ConvolvedImage(dict):
 
         cen = self.psfpars['cen']
         tcovar = stat.second_moments(self.psf, cen)
-        res = admom.admom(self.psf, cen[0],cen[1], guess=(tcovar[0]+tcovar[2])/2))
+        res = admom.admom(self.psf, cen[0],cen[1], guess=(tcovar[0]+tcovar[2])/2)
         covar_meas = array([res['Irr'],res['Irc'],res['Icc']])
         pars['covar_meas'] = covar_meas
         self['covar_psf'] = covar_meas
@@ -254,7 +254,7 @@ class ConvolvedImage(dict):
             covar_meas = array(pars['covar']) + array(psfpars['covar'])
         else:
             tcovar = stat.second_moments(self.image, cen)
-            res = admom.admom(self.image, cen[0],cen[1], guess=(tcovar[0]+tcovar[2])/2))
+            res = admom.admom(self.image, cen[0],cen[1], guess=(tcovar[0]+tcovar[2])/2)
             covar_meas = array([res['Irr'],res['Irc'],res['Icc']])
 
         self['covar'] = covar_meas

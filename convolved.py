@@ -70,7 +70,7 @@ class ConvolvedImage(dict):
         tcovar = stat.second_moments(self.psf, cen)
         res = admom.admom(self.psf, cen[0],cen[1], guess=(tcovar[0]+tcovar[2])/2)
         covar_meas = array([res['Irr'],res['Irc'],res['Icc']])
-        pars['covar_meas'] = covar_meas
+        self.psfpars['covar_meas'] = covar_meas
         self['covar_psf'] = covar_meas
 
         if self.verbose:

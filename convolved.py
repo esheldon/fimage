@@ -34,9 +34,11 @@ class ConvolvedImage(dict):
     """
 
     def __init__(self, objpars, psfpars, 
+                 nsub=4,
                  conv='fconv',           # 'fconv','fft', or 'func'
                  eps=1.e-4,              # for FuncConvolver
-                 forcegauss=False,       # force numerical convolutio for psf and obj gauss
+                 forcegauss=False,       # force numerical convolution for obj gauss, psf gauss/dgauss
+                 debug=False,
                  verbose=False):
 
         if conv not in ['fconv','fft','func']:
@@ -47,6 +49,9 @@ class ConvolvedImage(dict):
         self.forcegauss=forcegauss
         self.objpars = objpars
         self.psfpars = psfpars
+        self.debug=debug
+
+        self.nsub=nsub
 
         if 'counts' not in self.objpars:
             self.objpars['counts'] = 1.0
@@ -85,7 +90,8 @@ class ConvolvedImage(dict):
         T = 2*max(covar)
         dims,cen = self.getdimcen(T)
 
-        self.psf = pixmodel.model_image('gauss',dims,cen,covar)
+        self.psf = pixmodel.model_image('gauss',dims,cen,covar,
+                                        nsub=self.nsub)
 
         pars['dims'] = dims
         pars['cen'] = cen
@@ -154,7 +160,8 @@ class ConvolvedImage(dict):
         dims, cen = self.getdimcen(Texp, sigfac=sigfac)
 
         self.image0 = pixmodel.model_image(objmodel,dims,cen,covar,
-                                         counts=pars['counts'])
+                                           counts=pars['counts'], 
+                                           nsub=self.nsub)
 
         pars['dims'] = dims
         pars['cen'] = cen
@@ -196,7 +203,8 @@ class ConvolvedImage(dict):
         bothgauss=False
         psfmodel = psfpars['model']
         objmodel = pars['model']
-        if (psfmodel == 'gauss' and objmodel == 'gauss') and not self.forcegauss:
+        if (objmodel == 'gauss' and psfmodel == 'gauss') and not self.forcegauss:
+            print("doing analytic convolution of guassians for gauss")
             bothgauss=True
             ocovar=pars['covar']
             pcovar=psfpars['covar']
@@ -205,13 +213,37 @@ class ConvolvedImage(dict):
                      ocovar[2]+pcovar[2]]
 
             image = pixmodel.model_image('gauss',dims,cen,covar,
-                                       counts=pars['counts'])
+                                       counts=pars['counts'], nsub=self.nsub)
+        elif (objmodel == 'gauss' and psfmodel == 'dgauss') and not self.forcegauss:
+            print("doing analytic convolution of guassians for dgauss")
+            ocovar=pars['covar']
+            pcovar1=psfpars['covar1']
+            covar1 = [ocovar[0]+pcovar1[0],
+                      ocovar[1]+pcovar1[1],
+                      ocovar[2]+pcovar1[2]]
+
+            im1 = pixmodel.model_image('gauss',dims,cen,covar1,
+                                       counts=pars['counts'], nsub=self.nsub)
+
+            pcovar2=psfpars['covar2']
+            covar2 = [ocovar[0]+pcovar2[0],
+                      ocovar[1]+pcovar2[1],
+                      ocovar[2]+pcovar2[2]]
+
+            im2 = pixmodel.model_image('gauss',dims,cen,covar2,
+                                       counts=pars['counts'], nsub=self.nsub)
+
+            s2 = psfpars['s2']
+            b = psfpars['cenrat']
+            image = im1 + b*s2*im2
+            image /= (1+b*s2)
+
         else:
             if not have_scipy:
                 raise ImportError("Could not import scipy")
 
-
             if self.conv == 'fft':
+                print("running fft convolve")
                 # this should be un-necessary
                 image0_expand = images.expand(self.image0, self.psf.shape, verbose=self.verbose)
                 image = scipy.signal.fftconvolve(image0_expand, self.psf, mode='same')

@@ -123,7 +123,8 @@ c      end
         real*4 exp_rng, g_rng, rng
         integer*4 nsub
         integer*4 nstep
-        real*4 stepsize, intx, inty
+        real*4 stepsize
+        integer*4 intx, inty
         real*4 x,y,xexp,yexp,xm,ym
         real*4 x2,y2,xm2,ym2
         real*4 csum

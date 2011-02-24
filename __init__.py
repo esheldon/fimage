@@ -1,3 +1,6 @@
+from . import transform
+from .transform import rebin
+
 from . import pixmodel
 from .pixmodel import model_image
 from .pixmodel import double_gauss

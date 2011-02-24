@@ -41,8 +41,8 @@ class ConvolvedImage(dict):
                  debug=False,
                  verbose=False):
 
-        if conv not in ['fconv','fft','func']:
-            raise ValueError("conv must be 'fconv','fft','func'")
+        if conv not in ['fconv','fconvint','fft','func']:
+            raise ValueError("conv must be 'fconv','fconvint','fft','func'")
         self.conv=conv
         self['eps'] = eps
         self.verbose=verbose
@@ -252,6 +252,22 @@ class ConvolvedImage(dict):
                     if self.verbose:
                         print("  Trimming back to requested size")
                     image = image[ 0:dims[0], 0:dims[1] ]
+            elif self.conv == 'fconvint':
+                if objmodel != 'exp' or psfmodel not in ['gauss','dgauss']:
+                    raise ValueError('fconvfunc only works on exp-gauss or exp-dgauss')
+
+                print("running fconvint")
+                if psfmodel == 'gauss':
+                    image = fconv.conv_exp_gauss(dims,cen,pars['covar'], psfpars['covar'])
+                elif psfmodel == 'dgauss':
+                    s2 = psfpars['s2']
+                    b = psfpars['cenrat']
+                    im1= fconv.conv_exp_gauss(dims,cen,pars['covar'], psfpars['covar1'])
+                    im2= fconv.conv_exp_gauss(dims,cen,pars['covar'], psfpars['covar2'])
+
+                    image = im1 + b*s2*im2
+                    image /= (1+b*s2)
+
             elif self.conv == 'fconv':
                 print("running fconv")
                 if psfmodel == 'gauss':

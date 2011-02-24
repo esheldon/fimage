@@ -35,28 +35,30 @@ class ConvolvedImage(dict):
 
     """
 
-    def __init__(self, objpars, psfpars, # For FFTs, dims should generally be odd, and center on a pixel
-                 nsub=8,
-                 conv='fconv',           # 'fconv','fft', or 'func'
-                 fft_nsub=5,              # fft work on a subgrid, should be odd so FFT center is ok
-                 eps=1.e-4,              # for FuncConvolver
-                 forcegauss=False,       # force numerical convolution for obj gauss, psf gauss/dgauss
-                 debug=False,
-                 verbose=False):
+    def __init__(self, objpars, psfpars, **keys):
 
-        conv_allow=['fconv','fconvint','fft','func']
-        if conv not in conv_allow:
-            raise ValueError("conv must be "+str(conv_allow))
-        self.conv=conv
-        self.eps = eps
-        self.verbose=verbose
-        self.forcegauss=forcegauss
         self.objpars = objpars
         self.psfpars = psfpars
-        self.debug=debug
 
-        self.nsub=nsub
-        self.fft_nsub=fft_nsub
+        self.conv=keys.get('conv', 'fft')
+
+        conv_allow=['fconv','fconvint','fft','func']
+        if self.conv not in conv_allow:
+            raise ValueError("conv must be "+str(conv_allow))
+
+
+        self.nsub=keys.get('nsub', 16)
+        self.fft_nsub = keys.get('fft_nsub',1)
+        print("  -> ConvolvedImage nsub:",self.nsub)
+        print("  -> ConvolvedImage fft_nsub:",self.fft_nsub)
+
+
+        self.eps = keys.get('eps', 1.e-4)
+        self.forcegauss=keys.get('forcegauss',False)
+
+        self.debug=keys.get('debug',False)
+        self.verbose=keys.get('verbose', False)
+
 
         if 'counts' not in self.objpars:
             self.objpars['counts'] = 1.0
@@ -141,7 +143,9 @@ class ConvolvedImage(dict):
             self.psf_func=analytic.DoubleGauss(cenrat,covar1,covar2)
 
 
-    def make_image0(self):
+    def make_image0(self, old=False):
+        if old:
+            print("!!!!!!!!!!!! USING OLD !!!!!!!!!!!!!!!!")
         # run make_psf first!
         #
         # unconvolved model
@@ -162,7 +166,10 @@ class ConvolvedImage(dict):
         elif objmodel == 'exp':
             #sigfac = 5.0
             sigfac = 7.0
-            momfac = 3.0
+            if old:
+                momfac=1
+            else:
+                momfac = 3.0
         else:
             raise ValueError("Unsupported obj model: '%s'" % objmodel)
 
@@ -170,14 +177,17 @@ class ConvolvedImage(dict):
         Irr,Irc,Icc = covar
 
         # don't use admom here, we want the unweighted size!
-        fac=1.0
-        Irr_exp = Irr*momfac + psfpars['covar_meas'][0]
-        Icc_exp = Icc*momfac + psfpars['covar_meas'][2]
+        if old:
+            Irr_exp = Irr*momfac + psfpars['covar_meas_admom'][0]
+            Icc_exp = Icc*momfac + psfpars['covar_meas_admom'][2]
+        else:
+            Irr_exp = Irr*momfac + psfpars['covar_meas'][0]
+            Icc_exp = Icc*momfac + psfpars['covar_meas'][2]
 
         Texp = 2*max(Irr_exp,Icc_exp)
         dims, cen = self.getdimcen(Texp, sigfac=sigfac)
 
-        if dims[0] < psfpars['dims'][0]:
+        if dims[0] < psfpars['dims'][0] and old == False:
             dims = psfpars['dims']
             cen = psfpars['cen']
 
@@ -373,7 +383,6 @@ class ConvolvedImage(dict):
             psf_boosted = pixmodel.model_image('gauss',psfdims,psfcen,psfcovar, nsub=self.nsub)
 
             image_boosted = scipy.signal.fftconvolve(image0_boosted, psf_boosted, mode='same')
-            image = rebin(image_boosted, fft_nsub)
         else:
             b = ppars['cenrat']
             s2 = ppars['s2']
@@ -387,7 +396,11 @@ class ConvolvedImage(dict):
 
             image_boosted = im1 + b*s2*im2
             image_boosted /= (1+b*s2)
+
+        if fft_nsub > 1:
             image = rebin(image_boosted, fft_nsub)
+        else:
+            image = image_boosted
 
         # make sure the center didn't shift
         mom0 = stat.moments(self.image0)

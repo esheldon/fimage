@@ -198,7 +198,7 @@ c      end
 
 
                 gExpon=0.5*(x2*gWy + y2*gWx - 2.*x*y*gWxy)
-                expExpon = sqrt(xm2*expWy + ym2*expWx - 2.*xm*ym*expWxy)
+                expExpon = sqrt(xm2*expWy+ym2*expWx-2.*xm*ym*expWxy)
 
                 csum = csum + exp(-gExpon)*exp(-expExpon)
 
@@ -207,6 +207,7 @@ c      end
                 yexp = yexp+stepsize
                 y2=y*y
                 ym2=ym*ym
+
               enddo ! integration loop y
 
               x = x+stepsize

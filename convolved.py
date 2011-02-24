@@ -10,6 +10,8 @@ from . import fconv
 from . import analytic
 from . import conversions
 
+from .transform import rebin
+
 import admom
 
 try:
@@ -33,18 +35,20 @@ class ConvolvedImage(dict):
 
     """
 
-    def __init__(self, objpars, psfpars, 
+    def __init__(self, objpars, psfpars, # For FFTs, dims should generally be odd, and center on a pixel
                  nsub=4,
                  conv='fconv',           # 'fconv','fft', or 'func'
+                 fft_nsub=5,              # fft work on a subgrid, should be odd so FFT center is ok
                  eps=1.e-4,              # for FuncConvolver
                  forcegauss=False,       # force numerical convolution for obj gauss, psf gauss/dgauss
                  debug=False,
                  verbose=False):
 
-        if conv not in ['fconv','fconvint','fft','func']:
-            raise ValueError("conv must be 'fconv','fconvint','fft','func'")
+        conv_allow=['fconv','fconvint','fft','func']
+        if conv not in conv_allow:
+            raise ValueError("conv must be "+str(conv_allow))
         self.conv=conv
-        self['eps'] = eps
+        self.eps = eps
         self.verbose=verbose
         self.forcegauss=forcegauss
         self.objpars = objpars
@@ -52,6 +56,7 @@ class ConvolvedImage(dict):
         self.debug=debug
 
         self.nsub=nsub
+        self.fft_nsub=fft_nsub
 
         if 'counts' not in self.objpars:
             self.objpars['counts'] = 1.0
@@ -59,7 +64,6 @@ class ConvolvedImage(dict):
         self.make_psf()
         self.make_image0()
         self.make_image()
-
 
     def make_psf(self):
 
@@ -85,9 +89,11 @@ class ConvolvedImage(dict):
 
     def make_gauss_psf(self):
         pars=self.psfpars
+        pars['covar'] = array(pars['covar'])
         covar = pars['covar']
 
         T = 2*max(covar)
+        # getdimcen returns length 2 arrays
         dims,cen = self.getdimcen(T)
 
         self.psf = pixmodel.model_image('gauss',dims,cen,covar,
@@ -102,21 +108,19 @@ class ConvolvedImage(dict):
     def make_dgauss_psf(self):
 
         pars=self.psfpars
+        pars['covar1'] = array(pars['covar1'])
+        pars['covar2'] = array(pars['covar2'])
+
         cenrat = pars['cenrat']
         covar1 = pars['covar1']
         covar2 = pars['covar2']
 
         Tmax = 2*max( max(covar1), max(covar2) )
 
-        dims=pars.get('dims')
-        cen=pars.get('cen')
-        if dims is not None or cen is not None:
-            if dims is None or cen is None:
-                raise ValueError("If you send psf cen or dims, then send BOTH")
-        else:
-            dims,cen = self.getdimcen(Tmax)
+        dims,cen = self.getdimcen(Tmax)
 
-        self.psf = pixmodel.double_gauss(dims,cen,cenrat,covar1,covar2)
+        self.psf = pixmodel.double_gauss(dims,cen,cenrat,covar1,covar2,
+                                         nsub=self.nsub)
         det1=conversions.cov2det(covar1)
         det2=conversions.cov2det(covar2)
         pars['s2'] = sqrt(det2/det1)
@@ -140,6 +144,7 @@ class ConvolvedImage(dict):
         psfpars = self.psfpars
 
         objmodel = pars['model']
+        pars['covar'] = array(pars['covar'])
         covar = pars['covar']
 
         if objmodel == 'gauss':
@@ -243,15 +248,7 @@ class ConvolvedImage(dict):
                 raise ImportError("Could not import scipy")
 
             if self.conv == 'fft':
-                print("running fft convolve")
-                # this should be un-necessary
-                image0_expand = images.expand(self.image0, self.psf.shape, verbose=self.verbose)
-                image = scipy.signal.fftconvolve(image0_expand, self.psf, mode='same')
-
-                if image.shape[0] > dims[0] or image.shape[1] > dims[1]:
-                    if self.verbose:
-                        print("  Trimming back to requested size")
-                    image = image[ 0:dims[0], 0:dims[1] ]
+                image = self.make_image_fft()
             elif self.conv == 'fconvint':
                 if objmodel != 'exp' or psfmodel not in ['gauss','dgauss']:
                     raise ValueError('fconvfunc only works on exp-gauss or exp-dgauss')
@@ -291,7 +288,7 @@ class ConvolvedImage(dict):
                 intrange = (-rng,rng)
                 tdim = int( numpy.ceil( 2*sqrt( orange[1]**2 + prange[1]**2 ) ) )
                 print("intrange:",intrange,"needed dim:",tdim)
-                c = FuncConvolver(obj_func, psf_func, intrange, epsrel=self['eps'],epsabs=self['eps'])
+                c = FuncConvolver(obj_func, psf_func, intrange, epsrel=self.eps,epsabs=self.eps)
                 image = c.make_image(dims, cen)
                 image *= (pars['counts']/image.sum())
 
@@ -311,8 +308,58 @@ class ConvolvedImage(dict):
             print("convolved image pars")
             pprint(self)
 
+
+    def make_image_fft(self):
+        fft_nsub=self.fft_nsub
+
+        # this relies on the center being on a pixel
+        # and fft_nsub being odd so the center doesn't shift
+        pars=self.objpars
+        ppars=self.psfpars
+
+        objmodel = pars['model']
+        dims = pars['dims']*fft_nsub
+        cen_orig = pars['cen']
+        covar = pars['covar']*fft_nsub**2
+        
+        psfmodel = ppars['model']
+        psfdims = ppars['dims']*fft_nsub
+        psfcen_orig = ppars['cen']
+
+        # this is an array operation
+        cen = (dims-1.)/2.
+
+        image0 = pixmodel.model_image(objmodel,dims,cen,covar,
+                                      counts=pars['counts'], 
+                                      nsub=self.nsub)
+
+        psfcen = (psfdims-1.)/2.
+        if psfmodel == 'gauss':
+            psfcovar = ppars['covar']*fft_nsub**2
+            psf = pixmodel.model_image('gauss',psfdims,psfcen,psfcovar, nsub=self.nsub)
+        else:
+            cenrat = ppars['cenrat']
+            covar1 = ppars['covar1']*fft_nsub**2
+            covar2 = ppars['covar2']*fft_nsub**2
+            psf = pixmodel.double_gauss(psfdims,psfcen,cenrat,covar1,covar2, nsub=self.nsub)
+
+        print("running fft convolve")
+        image_boosted = scipy.signal.fftconvolve(image0, psf, mode='same')
+        image = rebin(image_boosted, self.fft_nsub)
+
+        # make sure the center didn't shift
+        mom0 = stat.moments(self.image0)
+        mom = stat.moments(image)
+
+        max_shift = max( abs(mom['cen'][0]-mom0['cen'][0]), abs(mom['cen'][1]-mom0['cen'][1]) )
+        if max_shift > 0.1:
+            raise ValueError("Center shifted greater than 0.1")
+
+        return image
+
     def mom2sigma(self, T):
         return sqrt(T/2)
+
     def getdimcen(self, T, sigfac=4.5):
         sigma = sqrt(T/2)
         imsize = int( numpy.ceil(2*sigfac*sigma) )
@@ -320,8 +367,8 @@ class ConvolvedImage(dict):
         # MUST BE ODD!
         if (imsize % 2) == 0:
             imsize+=1
-        dims = [imsize]*2
-        cen = [(imsize-1)/2]*2
+        dims = array( [imsize]*2 )
+        cen = array( [(imsize-1)/2]*2 )
 
         return dims,cen
 

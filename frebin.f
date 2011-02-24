@@ -3,7 +3,7 @@
         ! the dimension of rimage should be a multiple of
         ! image
         !
-        ! rimage must be already set to zero in all pixels
+        ! rimage must be zeroed in all pixels
         implicit none
 
         integer*4 flag
@@ -28,6 +28,10 @@
         endif
         if (fac < 1) then
           flag=2**1
+          return
+        endif
+        if ( (mod(nx,fac) .ne. 0) .or. (mod(ny,fac) .ne. 0)) then
+          flag=2**2
           return
         endif
 

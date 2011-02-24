@@ -1,8 +1,10 @@
 import numpy
 from . import _frebin
 
-_fr_emap={1:'rebin factor must be same in each dimension',
-          2:'rebin factor must be >= 1'}
+# errors from fortran code, these should be caught in the python wrapper
+_fr_emap={2**0:'rebin factor must be same in each dimension',
+          2**1:'rebin factor must be >= 1',
+          2**2:'rimage dims must be multiple of image sims'}
 def rebin(image, fac, order='f'):
     fac = int(fac)
 

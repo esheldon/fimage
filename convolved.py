@@ -571,8 +571,12 @@ class FuncConvolver:
     def _conv1(self, row0, col0):
         self.row0=row0
         self.col0=col0
-        ret = scipy.integrate.quad(self._intfunc2, self.range[0], self.range[1], args=self.range,
-                                  epsabs=self.epsabs,epsrel=self.epsrel)
+        ret = scipy.integrate.quad(self._intfunc2, 
+                                   self.range[0], 
+                                   self.range[1], 
+                                   args=self.range,
+                                   epsabs=self.epsabs,
+                                   epsrel=self.epsrel)
         return ret[0]
 
     def make_image(self, dims, cen):

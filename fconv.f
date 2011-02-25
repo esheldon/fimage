@@ -104,7 +104,10 @@ c      end
         ! any center.  Place the results in the image.
         !
         ! For a first go, I'm going to simply *add* up at the sub-pixel
-        ! level rather than true integration
+        ! level rather than more complex integration
+        !
+        ! maybe the best way to use this is run it at high resolution
+        ! and then downsample
 
         implicit none
 
@@ -225,6 +228,7 @@ c      end
 
       return
       end
+
       
       function conv_images_f4(
      &image1,image2,nx1,ny1,nx2,ny2,imageout)

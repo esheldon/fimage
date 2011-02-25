@@ -60,7 +60,7 @@ class Exp:
         use [-2*7*sigma, 2*7*sigma]
         '''
         sigma = sqrt( max( self.Irr, self.Icc) )
-        rng = 7*sigma
+        rng = 7.5*sigma
         return (-rng,rng)
 
     def __call__(self, row, col):

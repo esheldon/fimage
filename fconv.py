@@ -2,6 +2,7 @@ from __future__ import print_function
 import numpy
 
 from . import _fconv
+#from . import _testconv
 
 _gc_errmap={1:'determinant <= 0'}
 
@@ -22,13 +23,18 @@ _expgauss_errmap={1:'determinant of exp is <= 0',
 
 def conv_exp_gauss(dims, expcen, 
                    exp_covar, gauss_covar,
-                   nsub=4):
+                   nsub=4, type='f'):
     imout=numpy.zeros(dims, dtype='f4', order='f')
     expIxx,expIxy,expIyy = exp_covar
     gaussIxx,gaussIxy,gaussIyy = gauss_covar
 
-    flag=_fconv.conv_exp_gauss_f4(expIxx,expIxy,expIyy,expcen[0]+1,expcen[1]+1,
-                                  gaussIxx,gaussIxy,gaussIyy,nsub,imout)
+    if type == 'f':
+        flag=_fconv.conv_exp_gauss_f4(expIxx,expIxy,expIyy,expcen[0]+1,expcen[1]+1,
+                                      gaussIxx,gaussIxy,gaussIyy,nsub,imout)
+    else:
+        flag=_testconv.conv_exp_gauss_f4(expIxx,expIxy,expIyy,expcen[0]+1,expcen[1]+1,
+                                         gaussIxx,gaussIxy,gaussIyy,nsub,imout)
+
     #                             expixx,expixy,expiyy,expxcen,expycen,
     #                             gixx,gixy,giyy,nsub,image,[nx,ny])
 

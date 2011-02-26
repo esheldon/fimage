@@ -1,43 +1,26 @@
 c vim: set filetype=fortran et ts=2 sw=2 sts=2 :
 
-      subroutine mom_bilin(image,nx,ny,nsub,cen,cov)
+      subroutine mom_f4(image,nx,ny,cen,cov)
+        ! image must be sky subtracted
+        implicit none
 
-      ! image must be sky subtracted
+        integer*4 nx,ny
+        real*4 image(nx,ny)
+        real*8 cen(2), cov(3)
 
-      implicit none
+        real*8 isum, xsum, ysum, xxsum, xysum, yysum
+        real*8 x,y
+        real*8 val
 
-      integer*4 nx,ny
-      real*4 image(nx,ny)
-      real*8 cen(2), cov(3)
+        integer*4 ix,iy
 
-      real*8 xcen, ycen
-      integer*4 nsub
+        isum=0
+        xsum=0
+        ysum=0
+        xxsum=0
+        xysum=0
+        yysum=0
 
-      real*8 ixx,ixy,iyy
-
-      integer*4 ix,iy,iix,iiy
-
-      real*8 stepsize, offset
-      real*8 x,y
-      integer*4 x1,x2,y1,y2
-
-      real*8 isum, xsum, ysum, xxsum, xysum, yysum
-      real*8 val,val11,val12,val21,val22
-      real*8 fac
-
-      stepsize = 1./nsub
-      offset = (nsub-1)*stepsize/2.
-
-
-      ! first get the center without sub-pixel
-      isum=0
-      xsum=0
-      ysum=0
-      xxsum=0
-      xysum=0
-      yysum=0
-
-      if (nsub .eq. 1) then
         do ix=1,nx
           do iy=1,ny
             val = image(ix,iy)
@@ -50,23 +33,105 @@ c vim: set filetype=fortran et ts=2 sw=2 sts=2 :
             xxsum = xxsum + x*x*val
             xysum = xysum + x*y*val
             yysum = yysum + y*y*val
-
           enddo
         enddo
 
-        xcen = xsum/isum
-        ycen = ysum/isum
+        cen(1) = xsum/isum
+        cen(2) = ysum/isum
 
-        ixx = xxsum/isum - xcen**2
-        ixy = xysum/isum - xcen*ycen
-        iyy = yysum/isum - ycen**2
-        goto 8080
-      endif
+        cov(1) = xxsum/isum - cen(1)**2
+        cov(2) = xysum/isum - cen(1)*cen(2)
+        cov(3) = yysum/isum - cen(2)**2
 
-      ! interpolate across pixel except when at the edge
-      do ix=1,nx
-        do iy=1,ny
+        return
+      end
 
+
+      subroutine mom_f8(image,nx,ny,cen,cov)
+        ! image must be sky subtracted
+        implicit none
+
+        integer*4 nx,ny
+        real*8 image(nx,ny)
+        real*8 cen(2), cov(3)
+
+        real*8 isum, xsum, ysum, xxsum, xysum, yysum
+        real*8 x,y
+        real*8 val
+
+        integer*4 ix,iy
+
+        isum=0
+        xsum=0
+        ysum=0
+        xxsum=0
+        xysum=0
+        yysum=0
+
+        do ix=1,nx
+          do iy=1,ny
+            val = image(ix,iy)
+            x=float(ix)
+            y=float(iy)
+            isum = isum + val
+            xsum = xsum + val*x
+            ysum = ysum + val*y
+
+            xxsum = xxsum + x*x*val
+            xysum = xysum + x*y*val
+            yysum = yysum + y*y*val
+          enddo
+        enddo
+
+        cen(1) = xsum/isum
+        cen(2) = ysum/isum
+
+        cov(1) = xxsum/isum - cen(1)**2
+        cov(2) = xysum/isum - cen(1)*cen(2)
+        cov(3) = yysum/isum - cen(2)**2
+
+        return
+      end
+
+
+
+
+      subroutine mom_bilin_f4(image,nx,ny,nsub,cen,cov)
+        ! this interpolation doesn't help at all
+        ! image must be sky subtracted
+        implicit none
+
+        integer*4 nx,ny
+        real*4 image(nx,ny)
+        real*8 cen(2), cov(3)
+
+        integer*4 nsub
+
+        integer*4 ix,iy,iix,iiy
+
+        real*8 stepsize, offset
+        real*8 x,y
+        integer*4 x1,x2,y1,y2
+
+        real*8 isum, xsum, ysum, xxsum, xysum, yysum
+        real*8 val,val11,val12,val21,val22
+        real*8 fac
+
+        stepsize = 1./nsub
+        offset = (nsub-1)*stepsize/2.
+
+
+        ! first get the center without sub-pixel
+        isum=0
+        xsum=0
+        ysum=0
+        xxsum=0
+        xysum=0
+        yysum=0
+
+        ! interpolate across pixel except when at the edge
+        do ix=1,nx
+          do iy=1,ny
 
             x=ix-offset
             do iix=1,nsub
@@ -140,23 +205,16 @@ c vim: set filetype=fortran et ts=2 sw=2 sts=2 :
               x=x+stepsize
             enddo
 
+          enddo
         enddo
-      enddo
 
-      xcen = xsum/isum
-      ycen = ysum/isum
-      ixx = xxsum/isum - xcen**2
-      ixy = xysum/isum - xcen*ycen
-      iyy = yysum/isum - ycen**2
+        cen(1) = xsum/isum
+        cen(2) = ysum/isum
 
- 8080 continue
-      cen(1) = xcen
-      cen(2) = ycen
+        cov(1) = xxsum/isum - cen(1)**2
+        cov(2) = xysum/isum - cen(1)*cen(2)
+        cov(3) = yysum/isum - cen(2)**2
 
-      cov(1) = ixx
-      cov(2) = ixy
-      cov(3) = iyy
-
-      return
+        return
       end
 

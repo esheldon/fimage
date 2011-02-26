@@ -73,7 +73,23 @@ def fmom(image, nsub=1):
     cen=numpy.zeros(2,dtype='f8')
     cov=numpy.zeros(3,dtype='f8')
 
-    _fmom.mom_bilin(image,nsub,cen,cov)
+    nsub=int(nsub)
+    if nsub < 1:
+        raise ValueError("nsub must be >= 1")
+    if image.dtype.char == 'f' and image.dtype.itemsize==8:
+        isdouble=True
+    else:
+        isdouble=False
+
+    if nsub == 1:
+        if isdouble:
+            _fmom.mom_f8(image,cen,cov)
+        else:
+            _fmom.mom_f4(image,cen,cov)
+    else:
+        # note we only have an f4 version of this, so
+        # f8 will be converted
+        _fmom.mom_bilin_f4(image,nsub,cen,cov)
 
     cen -= 1
 

@@ -2,6 +2,8 @@ from __future__ import print_function
 import numpy
 from numpy import arange, array, ceil, zeros, sqrt, log10
 
+from . import _fmom
+
 from .pixmodel import model_image
 
 def moments(image, cen=None):
@@ -67,4 +69,12 @@ def second_moments(image, cen=None):
     return t['cov']
 
 
+def fmom(image, nsub=1):
+    cen=numpy.zeros(2,dtype='f8')
+    cov=numpy.zeros(3,dtype='f8')
 
+    _fmom.mom_bilin(image,nsub,cen,cov)
+
+    cen -= 1
+
+    return {'cen':cen, 'cov':cov}

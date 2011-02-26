@@ -6,9 +6,9 @@ from . import _fconv
 
 _gc_errmap={1:'determinant <= 0'}
 
-def gaussconv(image, covar):
+def gaussconv(image, cov):
     imout=numpy.zeros(image.shape, dtype='f4', order='f')
-    Irr,Irc,Icc=covar
+    Irr,Irc,Icc=cov
     flag=_fconv.gaussconv_f4(image,Irr,Irc,Icc,imout)
 
     if flag != 0:
@@ -22,11 +22,11 @@ _expgauss_errmap={1:'determinant of exp is <= 0',
                   2:'determinant of exp is <= 0'}
 
 def conv_exp_gauss(dims, expcen, 
-                   exp_covar, gauss_covar,
+                   exp_cov, gauss_cov,
                    nsub=4, type='f'):
     imout=numpy.zeros(dims, dtype='f4', order='f')
-    expIxx,expIxy,expIyy = exp_covar
-    gaussIxx,gaussIxy,gaussIyy = gauss_covar
+    expIxx,expIxy,expIyy = exp_cov
+    gaussIxx,gaussIxy,gaussIyy = gauss_cov
 
     if type == 'f':
         flag=_fconv.conv_exp_gauss_f4(expIxx,expIxy,expIyy,expcen[0]+1,expcen[1]+1,

@@ -43,6 +43,7 @@ def configuration(parent_package='',top_path=None):
     config.add_extension('_fconv', ['fconv.f'])
     #config.add_extension('_testconv', ['testconv.f90'])
     config.add_extension('_frebin', ['frebin.f'])
+    config.add_extension('_fmom', ['fmom.f'])
     return config
 
 if __name__ == "__main__":

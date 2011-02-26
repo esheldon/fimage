@@ -2,9 +2,9 @@ import numpy
 from numpy import sqrt, exp
 
 class Gauss:
-    def __init__(self, covar):
+    def __init__(self, cov):
 
-        Irr,Irc,Icc = covar
+        Irr,Irc,Icc = cov
 
         self.det = Irr*Icc - Irc**2
         if self.det == 0:
@@ -37,9 +37,9 @@ class Gauss:
 
 
 class Exp:
-    def __init__(self, covar):
+    def __init__(self, cov):
 
-        Irr,Irc,Icc = covar
+        Irr,Irc,Icc = cov
         self.det = Irr*Icc - Irc**2
         if self.det == 0:
             raise RuntimeError("Determinant is zero")
@@ -72,11 +72,11 @@ class Exp:
 class DoubleGauss:
     def __init__(self, 
                  cenrat,
-                 covar1,
-                 covar2):
+                 cov1,
+                 cov2):
 
-        Irr1,Irc1,Icc1 = covar1
-        Irr2,Irc2,Icc2 = covar2
+        Irr1,Irc1,Icc1 = cov1
+        Irr2,Irc2,Icc2 = cov2
 
         self.det1 = Irr1*Icc1-Irc1**2
         if self.det1 == 0:

@@ -6,7 +6,7 @@ import _fimage
 _tmap={'gauss':1,'exp':2,'dev':3}
 _emap={0:'ok',2**0:'invalid model',2**1:'determinant <= 0',2**2:'invalid nsub'}
 
-def model_image(model, dims, cen, covar, nsub=4, counts=1.0, order='f'):
+def model_image(model, dims, cen, cov, nsub=4, counts=1.0, order='f'):
     """
     Create in image with the specified model using sub-pixel integration
 
@@ -18,7 +18,7 @@ def model_image(model, dims, cen, covar, nsub=4, counts=1.0, order='f'):
         The dimensions of the image
     cen: sequence
         The center in [row,col]
-    covar: sequence
+    cov: sequence
         A three element sequence representing the covariance matrix
         [Irr,Irc,Icc].  Note this only corresponds exactly to the moments of
         the object for a gaussian model.
@@ -50,9 +50,9 @@ def model_image(model, dims, cen, covar, nsub=4, counts=1.0, order='f'):
     -------
         dims=[41,41]
         cen=[20,20]
-        covar=[8,2,4] # [Irr,Irc,Icc]
+        cov=[8,2,4] # [Irr,Irc,Icc]
 
-        im=model_image('gauss',dims,cen,covar)
+        im=model_image('gauss',dims,cen,cov)
 
     Notes
     ----- 
@@ -70,12 +70,9 @@ def model_image(model, dims, cen, covar, nsub=4, counts=1.0, order='f'):
         gaussian
             exp(-0.5*r2)
         exp
-            exp(-r))
+            exp( -sqrt(r2*3) )
         dev
             exp(-7.67*(r**0.25 - 1) )
-
-    Thus the actual moments of the image will be different from entered
-    except for guassians.
 
 
     Fortran
@@ -109,7 +106,7 @@ def model_image(model, dims, cen, covar, nsub=4, counts=1.0, order='f'):
         raise ValueError("invalid model '%s' "
                          "model must be in: %s" % (model,str(_tmap.keys())))
 
-    if len(covar) != 3:
+    if len(cov) != 3:
         raise ValueError("covariance must be a sequence of length 3")
 
     # the fortan code expects zeros in all pixels
@@ -117,7 +114,7 @@ def model_image(model, dims, cen, covar, nsub=4, counts=1.0, order='f'):
 
     # note offsetting the dimensions for fortran indexing
 
-    Irr,Irc,Icc=covar
+    Irr,Irc,Icc=cov
     flag=_fimage.model_f4image(modelnum,imf,cen[0]+1,cen[1]+1,Irr,Irc,Icc,nsub)
 
     if flag != 0:
@@ -134,7 +131,7 @@ def model_image(model, dims, cen, covar, nsub=4, counts=1.0, order='f'):
     return imf
 
 
-def double_gauss(dims, cen, cenrat, covar1,covar2,
+def double_gauss(dims, cen, cenrat, cov1,cov2,
                  nsub=4, counts=1.0, all=False):
     """
     Make a double gaussian image.
@@ -150,10 +147,10 @@ def double_gauss(dims, cen, cenrat, covar1,covar2,
         The ratio of the gaussians at the origin, second to first.
             cenrat = guass2(origin)/gauss1(origin)
 
-    covar1: sequence
+    cov1: sequence
         The covariance matrix of the first gaussian, [Irr,Irc,Icc]
         where r->row c->column
-    covar2: sequence
+    cov2: sequence
         The covariane matrix of the second gaussian.
 
     nsub: integer, optional
@@ -193,8 +190,8 @@ def double_gauss(dims, cen, cenrat, covar1,covar2,
 
     
     # we'll just use these
-    det1 = covar1[0]*covar1[2] - covar1[1]**2
-    det2 = covar2[0]*covar2[2] - covar2[1]**2
+    det1 = cov1[0]*cov1[2] - cov1[1]**2
+    det2 = cov2[0]*cov2[2] - cov2[1]**2
     
     if det1 == 0:
         raise ValueError("determinat of first covariance matrix is 0")
@@ -202,11 +199,44 @@ def double_gauss(dims, cen, cenrat, covar1,covar2,
         raise ValueError("determinat of second covariance matrix is 0")
     s2 = numpy.sqrt( det2/det1 )
 
-    im1 = model_image('gauss',dims,cen,covar1,nsub=nsub)
-    im2 = model_image('gauss',dims,cen,covar2,nsub=nsub)
+    im1 = model_image('gauss',dims,cen,cov1,nsub=nsub)
+    im2 = model_image('gauss',dims,cen,cov2,nsub=nsub)
 
     im = im1 + b*s2*im2
     im /= (1+b*s2)
 
     return im
 
+
+def ogrid_image(model, dims, cen, cov, counts=1.0, order='f', dtype='f4'):
+
+    Irr,Irc,Icc = cov
+    det = Irr*Icc - Irc**2
+    if det == 0.0:
+        raise RuntimeError("Determinant is zero")
+
+    Wrr = Irr/det
+    Wrc = Irc/det
+    Wcc = Icc/det
+
+    # ogrid is so useful
+    row,col=numpy.ogrid[0:dims[0], 0:dims[1]]
+
+    rm = numpy.array(row - cen[0], dtype=dtype)
+    cm = numpy.array(col - cen[1], dtype=dtype)
+
+    rr = rm**2*Wcc -2*rm*cm*Wrc + cm**2*Wrr
+
+    model = model.lower()
+    if model == 'gauss':
+        rr = 0.5*rr
+    elif model == 'exp':
+        rr = numpy.sqrt(rr*3.)
+    elif model == 'dev':
+        rr = 7.67*( (rr)**(.125) -1 )
+    else: 
+        raise ValueError("model must be one of gauss, exp, or dev")
+
+    image = numpy.exp(-rr)
+
+    return image

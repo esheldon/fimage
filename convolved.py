@@ -50,7 +50,8 @@ class ConvolvedImage(dict):
         self.nsub=keys.get('nsub', 16)
         self.fft_nsub = keys.get('fft_nsub',1)
         print("  -> ConvolvedImage nsub:",self.nsub)
-        print("  -> ConvolvedImage fft_nsub:",self.fft_nsub)
+        if self.conv == 'fft':
+            print("  -> ConvolvedImage fft_nsub:",self.fft_nsub)
 
 
         self.eps = keys.get('eps', 1.e-4)
@@ -143,9 +144,7 @@ class ConvolvedImage(dict):
             self.psf_func=analytic.DoubleGauss(cenrat,covar1,covar2)
 
 
-    def make_image0(self, old=False):
-        if old:
-            print("!!!!!!!!!!!! USING OLD !!!!!!!!!!!!!!!!")
+    def make_image0(self):
         # run make_psf first!
         #
         # unconvolved model
@@ -161,15 +160,10 @@ class ConvolvedImage(dict):
         covar = pars['covar']
 
         if objmodel == 'gauss':
+            # could probably be 3.5
             sigfac = 4.5
-            momfac = 1
         elif objmodel == 'exp':
-            #sigfac = 5.0
             sigfac = 7.0
-            if old:
-                momfac=1
-            else:
-                momfac = 3.0
         else:
             raise ValueError("Unsupported obj model: '%s'" % objmodel)
 
@@ -177,19 +171,17 @@ class ConvolvedImage(dict):
         Irr,Irc,Icc = covar
 
         # don't use admom here, we want the unweighted size!
-        if old:
-            Irr_exp = Irr*momfac + psfpars['covar_meas_admom'][0]
-            Icc_exp = Icc*momfac + psfpars['covar_meas_admom'][2]
-        else:
-            Irr_exp = Irr*momfac + psfpars['covar_meas'][0]
-            Icc_exp = Icc*momfac + psfpars['covar_meas'][2]
+        Irr_expect = Irr + psfpars['covar_meas'][0]
+        Icc_expect = Icc + psfpars['covar_meas'][2]
 
-        Texp = 2*max(Irr_exp,Icc_exp)
-        dims, cen = self.getdimcen(Texp, sigfac=sigfac)
+        Texpect = 2*max(Irr_expect,Icc_expect)
+        dims, cen = self.getdimcen(Texpect, sigfac=sigfac)
 
         if dims[0] < psfpars['dims'][0] and old == False:
             dims = psfpars['dims']
             cen = psfpars['cen']
+
+        print("  dims:",dims,"cen:",cen)
 
         self.image0 = pixmodel.model_image(objmodel,dims,cen,covar,
                                            counts=pars['counts'], 
@@ -357,6 +349,10 @@ class ConvolvedImage(dict):
 
         # this relies on the center being on a pixel
         # and fft_nsub being odd so the center doesn't shift
+
+        # note by this point in the code, dims will be >= psf dims
+        # so don't worry about that.
+
         pars=self.objpars
         ppars=self.psfpars
 
@@ -382,6 +378,7 @@ class ConvolvedImage(dict):
             psfcovar = ppars['covar']*fft_nsub**2
             psf_boosted = pixmodel.model_image('gauss',psfdims,psfcen,psfcovar, nsub=self.nsub)
 
+            print("  running fftconvolve")
             image_boosted = scipy.signal.fftconvolve(image0_boosted, psf_boosted, mode='same')
         else:
             b = ppars['cenrat']
@@ -391,7 +388,9 @@ class ConvolvedImage(dict):
             g1 = pixmodel.model_image('gauss',psfdims,psfcen,covar1, nsub=self.nsub)
             g2 = pixmodel.model_image('gauss',psfdims,psfcen,covar2, nsub=self.nsub)
 
+            print("  running fftconvolve1")
             im1 = scipy.signal.fftconvolve(image0_boosted, g1, mode='same')
+            print("  running fftconvolve2")
             im2 = scipy.signal.fftconvolve(image0_boosted, g2, mode='same')
 
             image_boosted = im1 + b*s2*im2
@@ -421,8 +420,8 @@ class ConvolvedImage(dict):
             print("  fft created image cen:",mom['cen'])
 
         max_shift = max( abs(mom['cen'][0]-mom0['cen'][0]), abs(mom['cen'][1]-mom0['cen'][1]) )
-        if max_shift > 0.1:
-            raise ValueError("Center shifted greater than 0.1: %f" % max_shift)
+        if (max_shift/mom['cen'][0]-1) > 0.0033:
+            raise ValueError("Center rel shifted greater than 0.0033: %f" % max_shift)
 
         return image
 

@@ -29,3 +29,5 @@ from .conversions import momdet
 from . import analytic
 
 from . import fconv
+
+from . import test_moments

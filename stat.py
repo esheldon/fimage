@@ -1,4 +1,8 @@
+from __future__ import print_function
 import numpy
+from numpy import arange, array, ceil, zeros, sqrt, log10
+
+from .pixmodel import model_image
 
 def moments(image, cen=None):
     """
@@ -61,3 +65,6 @@ def second_moments(image, cen=None):
     """
     t=moments(image,cen)
     return t['cov']
+
+
+

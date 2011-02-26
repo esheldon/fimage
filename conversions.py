@@ -1,7 +1,7 @@
 from __future__ import print_function
 import numpy
 from numpy import log, sqrt, cos, sin, pi as PI, exp, linspace, \
-        where
+        where, array
 
 _fwhm_fac = 2*sqrt(2*log(2))
 
@@ -24,7 +24,7 @@ def fwhm2mom(fwhm, pixscale=1.0):
 
 def mom2sigma(T):
     is_scalar = numpy.isscalar(T)
-    T = numpy.array(T, ndmin=1)
+    T = array(T, ndmin=1)
     sigma = numpy.empty(T.size, dtype='f4')
 
     sigma = numpy.where(T > 0, sqrt(T/2), -9999.0)
@@ -43,7 +43,7 @@ def mom2ellip(Irr, Irc, Icc):
     e1=(Icc-Irr)/T
     e2=2.0*Irc/T
 
-    return e1,e2,T
+    return array([e1,e2,T])
 
 def ellip2mom(T, e1=None, e2=None, e=None, theta=None):
     if e is not None and theta is not None:
@@ -57,7 +57,7 @@ def ellip2mom(T, e1=None, e2=None, e=None, theta=None):
     Icc = (1+e1)*T/2.0
     Irr = (1-e1)*T/2.0
 
-    return Irr, Irc, Icc
+    return array([Irr, Irc, Icc])
 
 def momdet(Irr, Irc, Icc):
     return Irr*Icc-Irc**2
@@ -81,7 +81,6 @@ def calculate_nsigma(type,show=False):
     norm = y.sum()
     ysum /= norm
 
-    #nsigarr = array([1,2,3,4,4.5],dtype='f8')
     xval = []
     ival = []
     percval = []

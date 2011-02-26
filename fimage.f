@@ -112,7 +112,7 @@ c     & " offset: ",offset
                 if (model .eq. 1) then
                   expon=0.5*r2
                 else if (model .eq. 2) then
-                  expon=sqrt(r2)
+                  expon=sqrt(r2*3.)
                 else if (model .eq. 3) then
                   expon=7.67*(r2**0.125 - 1)
                 endif
@@ -135,7 +135,7 @@ c     & " offset: ",offset
             if (model .eq. 1) then
               expon=0.5*r2
             else if (model .eq. 2) then
-              expon=sqrt(r2)
+              expon=sqrt(r2*3.)
             else if (model .eq. 3) then
               expon=7.67*(r2**0.25 - 1)
             endif

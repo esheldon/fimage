@@ -6,7 +6,7 @@ import _fimage
 _tmap={'gauss':1,'exp':2,'dev':3}
 _emap={0:'ok',2**0:'invalid model',2**1:'determinant <= 0',2**2:'invalid nsub'}
 
-def model_image(model, dims, cen, cov, nsub=4, counts=1.0, order='f'):
+def model_image(model, dims, cen, cov, nsub=4, counts=1.0, order='f', dtype='f8'):
     """
     Create in image with the specified model using sub-pixel integration
 
@@ -38,6 +38,9 @@ def model_image(model, dims, cen, cov, nsub=4, counts=1.0, order='f'):
         Send either 'c' for C order or 'f' for fortran order.  By
         default the result is fortran since the data is created
         in fortran.
+
+    dtype: string or numpy dtype
+        The data type, default 'f8'.  Can be 4-byte float or 8 byte float.
 
     Returns
     -------
@@ -109,13 +112,24 @@ def model_image(model, dims, cen, cov, nsub=4, counts=1.0, order='f'):
     if len(cov) != 3:
         raise ValueError("covariance must be a sequence of length 3")
 
+    dt = numpy.dtype(dtype)
+    if dt.name == 'float32':
+        dt='f4'
+    elif dt.name == 'float64':
+        dt='f8'
+    else:
+        raise ValueError("dtype must be 4-byte float or 8-byte float")
+
     # the fortan code expects zeros in all pixels
-    imf = numpy.zeros(dims, order='f', dtype='f4')
+    imf = numpy.zeros(dims, order='f', dtype=dt)
 
     # note offsetting the dimensions for fortran indexing
 
     Irr,Irc,Icc=cov
-    flag=_fimage.model_f4image(modelnum,imf,cen[0]+1,cen[1]+1,Irr,Irc,Icc,nsub)
+    if dt == 'f4':
+        flag=_fimage.model_f4image(modelnum,imf,cen[0]+1,cen[1]+1,Irr,Irc,Icc,nsub)
+    else:
+        flag=_fimage.model_f8image(modelnum,imf,cen[0]+1,cen[1]+1,Irr,Irc,Icc,nsub)
 
     if flag != 0:
         flagstring = _emap.get(flag, 'unknown error')
@@ -132,7 +146,8 @@ def model_image(model, dims, cen, cov, nsub=4, counts=1.0, order='f'):
 
 
 def double_gauss(dims, cen, cenrat, cov1,cov2,
-                 nsub=4, counts=1.0, all=False):
+                 nsub=4, counts=1.0, all=False, 
+                 dtype='f8'):
     """
     Make a double gaussian image.
 
@@ -199,8 +214,8 @@ def double_gauss(dims, cen, cenrat, cov1,cov2,
         raise ValueError("determinat of second covariance matrix is 0")
     s2 = numpy.sqrt( det2/det1 )
 
-    im1 = model_image('gauss',dims,cen,cov1,nsub=nsub)
-    im2 = model_image('gauss',dims,cen,cov2,nsub=nsub)
+    im1 = model_image('gauss',dims,cen,cov1,nsub=nsub,dtype=dtype)
+    im2 = model_image('gauss',dims,cen,cov2,nsub=nsub,dtype=dtype)
 
     im = im1 + b*s2*im2
     im /= (1+b*s2)
@@ -208,7 +223,7 @@ def double_gauss(dims, cen, cenrat, cov1,cov2,
     return im
 
 
-def ogrid_image(model, dims, cen, cov, counts=1.0, order='f', dtype='f4'):
+def ogrid_image(model, dims, cen, cov, counts=1.0, order='f', dtype='f8'):
 
     Irr,Irc,Icc = cov
     det = Irr*Icc - Irc**2

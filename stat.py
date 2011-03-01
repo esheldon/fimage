@@ -53,9 +53,13 @@ def moments(image, cen=None):
     Irc = (image*rm*cm).sum()/Isum
     Icc = (image*cm**2).sum()/Isum
 
+    T=Irr+Icc
+    e1=(Icc-Irr)/T
+    e2=2.*Irc/T
+
     cen = numpy.array(cen,dtype='f8')
     cov = numpy.array([Irr,Irc,Icc], dtype='f8')
-    return {'cen': cen, 'cov':cov}
+    return {'cen': cen, 'cov':cov, 'e1':e1, 'e2':e2}
 
 def second_moments(image, cen=None):
     """
@@ -93,4 +97,8 @@ def fmom(image, nsub=1):
 
     cen -= 1
 
-    return {'cen':cen, 'cov':cov}
+    T=cov[0] + cov[2]
+    e1 = (cov[2]-cov[0])/T
+    e2 = 2*cov[1]/T
+
+    return {'cen':cen, 'cov':cov, 'e1':e1, 'e2':e2}

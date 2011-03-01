@@ -21,6 +21,461 @@ except:
     have_scipy=False
 
 
+class ConvolvedImageFFT(dict):
+    '''
+
+    This one always uses FFTs when the result cannot be computed analytically
+    (gaussians) or forcegauss=True
+
+    We can begin with a higher resolution image and sample back down to the
+    requested resolution.
+
+    The relevant parameter for expansion should be the ratio of the "sigma" of
+    the smallest object to the pixel size.  For the convolutions we always want
+    to be at sigma >> 1, say 12.  The images are verified t have moments and
+    ellip within 0.001 of the true.
+
+    Note the center is always placed exactly on a pixel and the expansion factors
+    are odd so this remains true during the fft
+
+    '''
+
+    def __init__(self, objpars, psfpars, **keys):
+        self.objpars = objpars
+        self.psfpars = psfpars
+
+        if self.objpars['model'] not in ['gauss','exp']:
+            raise ValueError("only support gauss/exp objects")
+        if self.psfpars['model'] not in ['gauss','dgauss']:
+            raise ValueError("only support gauss/dgauss psfs")
+
+        self['image_nsub'] = keys.get('image_nsub', 16)
+        self['forcegauss'] = keys.get('forcegauss',False)
+        self['debug']      = keys.get('debug',False)
+        self['verbose']    = keys.get('verbose', False)
+
+        # for calculations we will demand sigma > minres pixels
+        # then sample back
+        self['minres'] = keys.get('minres',12)
+
+        print("  -> ConvolvedImage image nsub:",self['image_nsub'])
+
+        self['allgauss'] = False
+        if objpars['model'] == 'gauss' and psfpars['model'] in ['gauss','dgauss']:
+            self['allgauss'] = True
+
+        self.epsf = None
+        self.eimage0 = None
+        self.eimage = None
+
+        self.prep_cov()
+
+
+        cov = self.objpars['cov']
+        T=(cov[2]+cov[0])
+        self['covtrue'] = self.objpars['cov']
+        self['e1true'] = (cov[2]-cov[0])/T
+        self['e2true'] = 2*cov[1]/T
+        self['etrue'] = sqrt( self['e1true']**2 + self['e2true']**2 )
+
+        self.get_dims()
+        self.make_psf()
+        self.make_image0()
+        self.make_image()
+
+    def prep_cov(self):
+        '''
+        Make sure all the covariances are arrays
+        '''
+        self.objpars['cov'] = array(self.objpars['cov'],dtype='f4')
+        if self.psfpars['model'] == 'gauss':
+            self.psfpars['cov'] = array(self.psfpars['cov'],dtype='f4')
+        else:
+            self.psfpars['cov1'] = array(self.psfpars['cov1'],dtype='f4')
+            self.psfpars['cov2'] = array(self.psfpars['cov2'],dtype='f4')
+
+    def make_psf(self):
+        psfmodel = self.psfpars['model']
+        if psfmodel == 'gauss':
+            self.psf = self.get_gauss_psf()
+        elif psfmodel == 'dgauss':
+            self.psf, self.psfpars['s2'] = self.get_dgauss_psf()
+        else:
+            raise ValueError("unknown model type: '%s'" % psfmodel)
+
+        mom = stat.fmom(self.psf)
+        cov_uw = mom['cov']
+        cen_uw = mom['cen']
+        res = admom.admom(self.psf, cen_uw[0],cen_uw[1], guess=(cov_uw[0]+cov_uw[2])/2)
+
+        
+        cov_admom = array([res['Irr'],res['Irc'],res['Icc']])
+        cen_admom = array([res['wrow'], res['wcol']])
+
+        self.psfpars['cov_uw'] = cov_uw
+        self.psfpars['cen_uw'] = cen_uw
+        self.psfpars['cov_admom'] = cov_admom
+        self.psfpars['cen_admom'] = cen_admom
+
+        self['cov_psf_uw'] = cov_uw
+        self['cen_psf_uw'] = cen_uw
+        self['cov_psf_admom'] = cov_admom
+        self['cen_psf_admom'] = cen_admom
+
+        if self['verbose']:
+            print("PSF model")
+            pprint(self.psfpars)
+
+        if self['debug']:
+            plt=images.multiview(self.psf,levels=7, show=False)
+            plt.title='PSF image'
+            plt.show()
+
+        self.psfpars['cen'] = self['cen']
+
+
+    def get_gauss_psf(self, expand=False, verify=False):
+        pars=self.psfpars
+
+        if expand:
+            cen  = self['ecen']
+            dims = self['edims']
+            cov  = pars['cov']*self['expand_fac']**2
+        else:
+            cen  = self['cen']
+            dims = self['dims']
+            cov  = pars['cov']
+
+        psf = pixmodel.model_image('gauss',dims,cen,cov,nsub=self['image_nsub'])
+
+        if verify:
+            print("    verifying gauss psf")
+            self.verify_image(psf, cov)
+        return psf
+
+    def get_dgauss_psf(self, expand=False, verify=False):
+
+        pars=self.psfpars
+
+        if expand:
+            cen    = self['ecen']
+            dims   = self['edims']
+            cenrat = pars['cenrat']
+            cov1   = pars['cov1']*self['expand_fac']**2
+            cov2   = pars['cov2']*self['expand_fac']**2
+        else:
+            cen    = self['cen']
+            dims   = self['dims']
+            cenrat = pars['cenrat']
+            cov1   = pars['cov1']
+            cov2   = pars['cov2']
+
+        det1=conversions.cov2det(cov1)
+        det2=conversions.cov2det(cov2)
+        s2 = sqrt(det2/det1)
+
+        im1 = pixmodel.model_image('gauss',dims,cen,cov1, nsub=self['image_nsub'])
+        im2 = pixmodel.model_image('gauss',dims,cen,cov2, nsub=self['image_nsub'])
+        b = pars['cenrat']
+        psf = im1 + b*s2*im2
+        psf /= (1+b*s2)
+
+        if verify:
+            print("    verifying dgauss psf")
+            self.verify_image(im1, cov1)
+            self.verify_image(im2, cov2)
+
+        return psf, s2
+
+    def make_image0(self):
+        self.image0 = self.get_image0()
+
+        mom = stat.fmom(self.image0)
+        cov_meas = mom['cov']
+        cen_meas = mom['cen']
+        #cov_meas = stat.second_moments(self.image0, cen)
+
+        res = admom.admom(self.image0, cen_meas[0],cen_meas[1], 
+                          guess=(cov_meas[0]+cov_meas[1])/2 )
+        cov_meas_admom = array([res['Irr'],res['Irc'],res['Icc']])
+
+        pars = self.objpars
+
+
+        mom = stat.fmom(self.image0)
+        cov_uw = mom['cov']
+        cen_uw = mom['cen']
+        res = admom.admom(self.image0, cen_uw[0],cen_uw[1], guess=(cov_uw[0]+cov_uw[2])/2)
+        
+        cov_admom = array([res['Irr'],res['Irc'],res['Icc']])
+        cen_admom = array([res['wrow'], res['wcol']])
+
+        pars['cov_uw'] = cov_uw
+        pars['cen_uw'] = cen_uw
+        pars['cov_admom'] = cov_admom
+        pars['cen_admom'] = cen_admom
+        self['cov_image0_uw'] = cov_uw
+        self['cen_image0_uw'] = cen_uw
+        self['cov_image0_admom'] = cov_admom
+        self['cen_image0_admom'] = cen_admom
+
+
+        if self['verbose']:
+            print("image0 pars")
+            pprint(self.objpars)
+
+        if self['debug']:
+            plt=images.multiview(self.image0,levels=7, show=False)
+            plt.title='image0'
+            plt.show()
+
+    def get_image0(self, expand=False, verify=False):
+
+        pars = self.objpars
+        if 'counts' not in pars:
+            pars['counts'] = 1.0
+
+        if expand:
+            cen  = self['ecen']
+            dims = self['edims']
+            cov  = pars['cov']*self['expand_fac']**2
+        else:
+            cen  = self['cen']
+            dims = self['dims']
+            cov  = pars['cov']
+
+
+        objmodel = pars['model']
+        image0 = pixmodel.model_image(objmodel,dims,cen,cov,
+                                      counts=pars['counts'], 
+                                      nsub=self['image_nsub'])
+
+        if verify:
+            print("    verifying image0")
+            self.verify_image(image0, cov)
+        return image0
+
+
+    def make_image(self):
+
+
+        if self['verbose']:
+            print("Convolving to final image")
+
+        image0 = self.image0
+        psf = self.psf
+
+        if (self['allgauss']) and not self['forcegauss']:
+            print("doing analytic convolution of guassians for gauss")
+            image = self.get_analytic_conv()
+        else:
+            image = self.get_fft_conv()
+
+        self.image=image
+
+        mom_uw = stat.fmom(self.image)
+        cov_uw = mom_uw['cov']
+        cen_uw = mom_uw['cen']
+
+        res = admom.admom(self.image, cen_uw[0], cen_uw[1], guess=(cov_uw[0]+cov_uw[2])/2)
+        cov_admom = array([res['Irr'],res['Irc'],res['Icc']])
+        cen_admom = array([res['wrow'], res['wcol']])
+
+        self['cov_uw'] = cov_uw
+        self['cen_uw'] = cen_uw
+        self['cov_admom'] = cov_admom
+        self['cen_admom'] = cen_admom
+
+        if self['verbose']:
+            print("convolved image pars")
+            pprint(self)
+
+        if self['debug']:
+            plt=images.multiview(self.image,levels=7, show=False)
+            plt.title='convolved image'
+            plt.show()
+
+
+
+    def verify_image(self, image, cov, eps=1.e-3):
+        '''
+
+        Ensure that the *unweighted* moments are equal to input moments
+
+        This is only useful for expaned images since unweighted moments don't
+        include sub-pixel effects
+
+        '''
+
+        mom = stat.fmom(image)
+        mcov = mom['cov']
+
+        rowrel = abs(mcov[0]/cov[0]-1)
+        colrel = abs(mcov[2]/cov[2]-1)
+
+        pdiff = max(rowrel,colrel)
+        if pdiff > eps:
+            raise ValueError("moments pdiff %f not within tolerance %f" % (pdiff,eps))
+
+        T = mcov[2] + mcov[0]
+        e1 = (mcov[2]-mcov[1])/T
+        e2 = 2*mcov[1]/T
+        e = sqrt(e1**2 + e2**2)
+
+        Ttrue = cov[2] + cov[0]
+        e1true = (cov[2]-cov[1])/T
+        e2true = 2*cov[1]/T
+        etrue = sqrt(e1true**2 + e2true**2)
+
+        erel = abs(e/etrue-1)
+        if erel > eps:
+            raise ValueError("moments pdiff %f not within tolerance %f" % (erel,eps))
+        
+        if self['verbose']:
+            print("        moment fdiff: %e" % pdiff)
+            print("        ellip  fdiff:   %e" % erel)
+
+
+
+    def get_fft_conv(self):
+        if self['expand_fac'] > 1:
+            psfmodel = self.psfpars['model']
+            if psfmodel == 'gauss':
+                epsf = self.get_gauss_psf(expand=True, verify=True)
+            elif psfmodel == 'dgauss':
+                epsf, s2 = self.get_dgauss_psf(expand=True, verify=True)
+            else:
+                raise ValueError("unknown model type: '%s'" % psfmodel)
+
+            eimage0 = self.get_image0(expand=True, verify=True)
+            eimage = scipy.signal.fftconvolve(eimage0, epsf, mode='same')
+            image = rebin(eimage, self['expand_fac'])
+        else:
+            image = scipy.signal.fftconvolve(self.image0, self.psf, mode='same')
+
+        # make sure the center didn't shift
+        mom0 = stat.moments(self.image0)
+        mom = stat.moments(image)
+
+        max_shift = max( abs(mom['cen'][0]-mom0['cen'][0]), abs(mom['cen'][1]-mom0['cen'][1]) )
+        if (max_shift/mom['cen'][0]-1) > 0.0033:
+            raise ValueError("Center rel shifted greater than 0.0033: %f" % max_shift)
+
+        return image
+
+
+    def get_analytic_conv(self):
+
+        pars    = self.objpars
+        psfpars = self.psfpars
+        dims    = self['dims']
+        cen     = self['cen']
+
+        ocov=pars['cov']
+        if self.psfpars['model'] == 'gauss':
+            pcov=psfpars['cov']
+            cov = ocov + pcov
+
+            image = pixmodel.model_image('gauss',dims,cen,cov,
+                                         counts=pars['counts'], 
+                                         nsub=self['image_nsub'])
+        else:
+            pcov1 = psfpars['cov1']
+            pcov2 = psfpars['cov2']
+            cov1  = ocov + pcov1
+            cov2  = ocov + pcov2
+
+            im1 = pixmodel.model_image('gauss',dims,cen,cov1,
+                                       counts=pars['counts'], 
+                                       nsub=self['image_nsub'])
+            im2 = pixmodel.model_image('gauss',dims,cen,cov2,
+                                       counts=pars['counts'], 
+                                       nsub=self['image_nsub'])
+            s2 = psfpars['s2']
+            b = psfpars['cenrat']
+            image = im1 + b*s2*im2
+            image /= (1+b*s2)
+
+        return image
+
+
+
+    def get_dims(self):
+        '''
+
+        Get the dimensions of the image objects.
+
+        Determine by how much we need to expand in order to get accurate
+        convolutions.
+
+        '''
+
+        p = self.objpars
+        pp = self.psfpars
+        sigma_max = sqrt( max(p['cov'][0],p['cov'][2]) )
+        sigma_min = sqrt( min(p['cov'][0],p['cov'][2]) )
+
+        if pp['model'] == 'gauss':
+            sigma_psf_min = sqrt( min(pp['cov'][0], pp['cov'][2]) )
+            sigma_psf_max = sqrt( max(pp['cov'][0], pp['cov'][2]) )
+        elif pp['model'] == 'dgauss':
+            sigma_psf_min1 = sqrt( min(pp['cov1'][0], pp['cov1'][2]) )
+            sigma_psf_max1 = sqrt( max(pp['cov1'][0], pp['cov1'][2]) )
+
+            sigma_psf_min2 = sqrt( min(pp['cov2'][0], pp['cov2'][2]) )
+            sigma_psf_max2 = sqrt( max(pp['cov2'][0], pp['cov2'][2]) )
+
+            sigma_psf_min = min(sigma_psf_min1,sigma_psf_min2)
+            sigma_psf_max = max(sigma_psf_max1,sigma_psf_max2)
+        else:
+            raise ValueError("only support gauss/dgauss psf")
+
+        # for dims we use largest possible
+        sigfac=4.5
+        if p['model'] == 'exp':
+            sigfac=7.0
+
+        Texpect = 2*(sigma_max**2 + sigma_psf_max**2)
+        dims,cen = self._get_dimcen(Texpect, sigfac=sigfac)
+
+        # now see if we need to expand, use the smallest dimension
+        sigma_min = min(sigma_min, sigma_psf_min)
+
+        if sigma_min > self['minres']:
+            fac=1
+        else:
+            # find the odd integer expansion that will get sigma > minres
+            fac = int(self['minres']/sigma_min)
+            if (fac % 2) == 0:
+                fac += 1
+
+        self['dims'] = dims
+        self['cen'] = cen
+        self['expand_fac'] = fac
+
+        if fac > 1:
+            self['edims'] = fac*self['dims']
+            self['ecen'] = array( [(self['edims'][0]-1)/2]*2 )
+        else:
+            self['edims'] = self['dims']
+            self['ecen'] = self['cen']
+
+        print("  -> minres:    ",self['minres'])
+        print("  -> expand_fac:",self['expand_fac'])
+
+    def _get_dimcen(self, T, sigfac=4.5):
+        sigma = sqrt(T/2)
+        imsize = int( numpy.ceil(2*sigfac*sigma) )
+
+        # MUST BE ODD!
+        if (imsize % 2) == 0:
+            imsize+=1
+        dims = array( [imsize]*2 )
+        cen = array( [(imsize-1)/2]*2 )
+
+        return dims,cen
+
+
 
 
 class ConvolvedImage(dict):
@@ -49,6 +504,8 @@ class ConvolvedImage(dict):
 
         self.image_nsub=keys.get('image_nsub', 16)
         self.fft_nsub = keys.get('fft_nsub',1)
+        self.fconvint_nsub = keys.get('fconvint_nsub',4)
+
         print("  -> ConvolvedImage image nsub:",self.image_nsub)
         if self.conv == 'fft':
             print("  -> ConvolvedImage fft_nsub:",self.fft_nsub)
@@ -282,12 +739,15 @@ class ConvolvedImage(dict):
 
                 print("running fconvint")
                 if psfmodel == 'gauss':
-                    image = fconv.conv_exp_gauss(dims,cen,pars['cov'], psfpars['cov'])
+                    image = fconv.conv_exp_gauss(dims,cen,pars['cov'], psfpars['cov'],
+                                                nsub=self.fconvint_nsub)
                 elif psfmodel == 'dgauss':
                     s2 = psfpars['s2']
                     b = psfpars['cenrat']
-                    im1= fconv.conv_exp_gauss(dims,cen,pars['cov'], psfpars['cov1'])
-                    im2= fconv.conv_exp_gauss(dims,cen,pars['cov'], psfpars['cov2'])
+                    im1= fconv.conv_exp_gauss(dims,cen,pars['cov'], psfpars['cov1'],
+                                              nsub=self.fconvint_nsub)
+                    im2= fconv.conv_exp_gauss(dims,cen,pars['cov'], psfpars['cov2'],
+                                              nsub=self.fconvint_nsub)
 
                     image = im1 + b*s2*im2
                     image /= (1+b*s2)
@@ -408,9 +868,6 @@ class ConvolvedImage(dict):
         if self.verbose:
             print("  psf dims:",self.psf.shape)
             print("  psf cen: ",self.psfpars['cen'])
-            #print("  boosted psf dims:",psf_boosted.shape)
-            #pbmom = stat.moments(psf_boosted)
-            #print("  boosted psf cen:", pbmom['cen'])
             print("  image0 dims:",self.image0.shape)
             print("  image0 cen:",self.objpars['cen'])
             print("  boosted image0 dims:",image0_boosted.shape)
@@ -756,3 +1213,25 @@ def test_func_convolver(epsabs=1.4899999999999999e-08, epsrel=1.4899999999999999
 def test_convolver_plot(im, imfast):
     images.compare_images(im,imfast,label1='accurate',label2='fast')
 
+
+def test_conv_exp_gauss():
+    '''
+    Generate hires objects, convolve them with fft, and
+    compare to the conv_exp_gauss.  
+
+    Then rebin the hires and compare to conv_exp_gauss created
+    at the lower res
+    '''
+
+    fac=5
+
+    cov=array([2.0,0.5,1.0])
+    psf_cov = array([1.0,0.0,1.0])
+
+    objpars_hires={'model':'exp',   'cov':cov*fac**2}
+    psfpars_hires={'model':'gauss', 'cov':psf_cov*fac**2}
+
+    ci_fft = ConvolvedImage(objpars_hires, psfpars_hires, conv='fft')
+    ci_int = ConvolvedImage(objpars_hires, psfpars_hires, conv='fconvint', fconvint_nsub=1)
+
+    images.compare_images(ci_fft.image, ci_int.image, label1='fft', label2='int')

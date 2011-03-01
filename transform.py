@@ -15,9 +15,21 @@ def rebin(image, fac, order='f'):
     if (rowsize % fac) != 0 or (colsize % fac) != 0:
         raise ValueError("dimensions must be divisible by the rebin factor")
 
-    rimage = numpy.zeros((rowsize/fac, colsize/fac), dtype='f4', order='f')
 
-    flag = _frebin.rebin_f4image(image, rimage)
+    dt = numpy.dtype(image.dtype)
+    if dt.name == 'float32':
+        dt='f4'
+    else:
+        # If image is not f8, will convert to f8 internally
+        dt='f8'
+
+    rimage = numpy.zeros((rowsize/fac, colsize/fac), dtype=dt, order='f')
+
+    if dt == 'f4':
+        flag = _frebin.rebin_f4image(image, rimage)
+    else:
+        flag = _frebin.rebin_f8image(image, rimage)
+
     if flag != 0:
         flagstring = _fr_emap.get(flag, 'unknown error')
         raise RuntimeError("Error creating image: %s" % flagstring)

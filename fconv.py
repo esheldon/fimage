@@ -32,6 +32,7 @@ def conv_exp_gauss(dims, expcen,
         flag=_fconv.conv_exp_gauss_f4(expIxx,expIxy,expIyy,expcen[0]+1,expcen[1]+1,
                                       gaussIxx,gaussIxy,gaussIyy,nsub,imout)
     else:
+        # testing f90
         flag=_testconv.conv_exp_gauss_f4(expIxx,expIxy,expIyy,expcen[0]+1,expcen[1]+1,
                                          gaussIxx,gaussIxy,gaussIyy,nsub,imout)
 

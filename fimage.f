@@ -1,7 +1,7 @@
 c vim: set filetype=fortran et ts=2 sw=2 sts=2 :
 
       ! place a a model in images with sub-pixel integration. Each
-      ! pixel is divided into a 4x4 grid.
+      ! pixel is divided into a nxn grid.  For 4x4
       !
       !      -----------------
       !      |   |   |   |   |

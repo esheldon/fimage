@@ -14,19 +14,19 @@ c vim: set filetype=fortran et ts=2 sw=2 sts=2 :
       !      -----------------
       !
       ! If the center of the pixl is as shown, then the center of
-      ! the upper left corner is (-3/8, 3/8).  3/8 = 0.375 and
-      ! this number is sprinkled throughout the code below
+      ! the upper left corner is (-3/8, 3/8).
+      ! The formulas for working on the sub grid:
+      !   stepsize = 1./nsub
+      !   offset = (nsub-1)*stepsize/2.
       !
 
       ! various models are supported.  The first input to each routine
       ! is an integer "model"
       !   1: gaussian
       !   2: exponential
-      !   3: devauc profile
+      !   3: devauc profile, e.g. exp(-r^0.25)
       !
-      ! In all cases the ixx,ixy,iyy form the covariance matrix, but
-      ! note this translates very differently into ellipticity
-      ! for each model
+      ! In all cases the ixx,ixy,iyy form the covariance matrix.
 
 
       function model_f4image(model,image,nx,ny,xcen,ycen,

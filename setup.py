@@ -41,7 +41,6 @@ def configuration(parent_package='',top_path=None):
     config = Configuration('fimage',parent_package,top_path)
     config.add_extension('_fimage', ['fimage.f'])
     config.add_extension('_fconv', ['fconv.f'])
-    #config.add_extension('_testconv', ['testconv.f90'])
     config.add_extension('_frebin', ['frebin.f'])
     config.add_extension('_fmom', ['fmom.f'])
     return config

@@ -66,7 +66,7 @@ def second_moments(image, cen=None):
     Measure the second moments of an image.
 
     This just calls moments() and returns the covariance matrix elements in a
-    array [Irr,Irc,Icc].  See docs for fimage.stat.moments for more details.
+    array [Irr,Irc,Icc].  See docs for fimage.statistics.moments for more details.
 
     """
     t=moments(image,cen)

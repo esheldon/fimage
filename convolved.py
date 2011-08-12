@@ -4,7 +4,7 @@ import numpy
 from numpy import sqrt, exp, array
 import images
 
-from . import stat
+from . import statistics as stat
 from . import pixmodel
 from . import fconv
 from . import analytic

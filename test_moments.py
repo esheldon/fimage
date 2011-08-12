@@ -3,7 +3,7 @@ import numpy
 from numpy import arange, array, ceil, zeros, sqrt, log10
 
 from .pixmodel import model_image
-from .stat import second_moments
+from .statistics import second_moments
 
 class MomentTester:
     '''

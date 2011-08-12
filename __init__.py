@@ -8,9 +8,9 @@ from .pixmodel import double_gauss
 from . import convolved
 from .convolved import ConvolvedImage
 
-from . import stat
-from .stat import second_moments
-from .stat import moments
+from . import statistics
+from .statistics import second_moments
+from .statistics import moments
 
 from . import conversions
 

@@ -3,6 +3,7 @@ from pprint import pprint
 import numpy
 from numpy import sqrt, exp, array
 import images
+from sys import stderr
 
 from . import statistics as stat
 from . import pixmodel
@@ -19,6 +20,14 @@ try:
     have_scipy=True
 except:
     have_scipy=False
+
+def wlog(*args):
+    narg = len(args)
+    for i,arg in enumerate(args):
+        stderr.write("%s" % arg)
+        if i < (narg-1):
+            stderr.write(" ")
+    stderr.write('\n')
 
 
 class ConvolvedImageFFT(dict):
@@ -58,7 +67,7 @@ class ConvolvedImageFFT(dict):
         # then sample back
         self['minres'] = keys.get('minres',12)
 
-        print("  -> ConvolvedImage image nsub:",self['image_nsub'])
+        wlog("  -> ConvolvedImage image nsub:",self['image_nsub'])
 
         self['allgauss'] = False
         if objpars['model'] == 'gauss' and psfpars['model'] in ['gauss','dgauss']:
@@ -123,8 +132,8 @@ class ConvolvedImageFFT(dict):
         self['cen_psf_admom'] = cen_admom
 
         if self['verbose']:
-            print("PSF model")
-            pprint(self.psfpars)
+            wlog("PSF model")
+            pprint(self.psfpars,stream=stderr)
 
         if self['debug']:
             plt=images.multiview(self.psf,levels=7, show=False)
@@ -149,7 +158,7 @@ class ConvolvedImageFFT(dict):
         psf = pixmodel.model_image('gauss',dims,cen,cov,nsub=self['image_nsub'])
 
         if verify:
-            print("    verifying gauss psf")
+            wlog("    verifying gauss psf")
             self.verify_image(psf, cov)
         return psf
 
@@ -181,7 +190,7 @@ class ConvolvedImageFFT(dict):
         psf /= (1+b*s2)
 
         if verify:
-            print("    verifying dgauss psf")
+            wlog("    verifying dgauss psf")
             self.verify_image(im1, cov1)
             self.verify_image(im2, cov2)
 
@@ -221,8 +230,8 @@ class ConvolvedImageFFT(dict):
 
 
         if self['verbose']:
-            print("image0 pars")
-            pprint(self.objpars)
+            wlog("image0 pars")
+            pprint(self.objpars,stream=stderr)
 
         if self['debug']:
             plt=images.multiview(self.image0,levels=7, show=False)
@@ -251,7 +260,7 @@ class ConvolvedImageFFT(dict):
                                       nsub=self['image_nsub'])
 
         if verify:
-            print("    verifying image0")
+            wlog("    verifying image0")
             self.verify_image(image0, cov)
         return image0
 
@@ -260,13 +269,13 @@ class ConvolvedImageFFT(dict):
 
 
         if self['verbose']:
-            print("Convolving to final image")
+            wlog("Convolving to final image")
 
         image0 = self.image0
         psf = self.psf
 
         if (self['allgauss']) and not self['forcegauss']:
-            print("doing analytic convolution of guassians for gauss")
+            wlog("doing analytic convolution of guassians for gauss")
             image = self.get_analytic_conv()
         else:
             image = self.get_fft_conv()
@@ -287,8 +296,8 @@ class ConvolvedImageFFT(dict):
         self['cen_admom'] = cen_admom
 
         if self['verbose']:
-            print("convolved image pars")
-            pprint(self)
+            wlog("convolved image pars")
+            pprint(self,stream=stderr)
 
         if self['debug']:
             plt=images.multiview(self.image,levels=7, show=False)
@@ -332,8 +341,8 @@ class ConvolvedImageFFT(dict):
             raise ValueError("moments pdiff %f not within tolerance %f" % (erel,eps))
         
         if self['verbose']:
-            print("        moment fdiff: %e" % pdiff)
-            print("        ellip  fdiff:   %e" % erel)
+            wlog("        moment fdiff: %e" % pdiff)
+            wlog("        ellip  fdiff:   %e" % erel)
 
 
 
@@ -460,8 +469,8 @@ class ConvolvedImageFFT(dict):
             self['edims'] = self['dims']
             self['ecen'] = self['cen']
 
-        print("  -> minres:    ",self['minres'])
-        print("  -> expand_fac:",self['expand_fac'])
+        wlog("  -> minres:    ",self['minres'])
+        wlog("  -> expand_fac:",self['expand_fac'])
 
     def _get_dimcen(self, T, sigfac=4.5):
         sigma = sqrt(T/2)
@@ -506,9 +515,9 @@ class ConvolvedImage(dict):
         self.fft_nsub = keys.get('fft_nsub',1)
         self.fconvint_nsub = keys.get('fconvint_nsub',4)
 
-        print("  -> ConvolvedImage image nsub:",self.image_nsub)
+        wlog("  -> ConvolvedImage image nsub:",self.image_nsub)
         if self.conv == 'fft':
-            print("  -> ConvolvedImage fft_nsub:",self.fft_nsub)
+            wlog("  -> ConvolvedImage fft_nsub:",self.fft_nsub)
 
 
         self.eps = keys.get('eps', 1.e-4)
@@ -548,8 +557,8 @@ class ConvolvedImage(dict):
         self['cov_psf_admom'] = cov_meas_admom
 
         if self.verbose:
-            print("PSF model")
-            pprint(self.psfpars)
+            wlog("PSF model")
+            pprint(self.psfpars,stream=stderr)
 
         if self.debug:
             plt=images.multiview(self.psf,levels=7, show=False)
@@ -638,7 +647,7 @@ class ConvolvedImage(dict):
             dims = psfpars['dims']
             cen = psfpars['cen']
 
-        print("  dims:",dims,"cen:",cen)
+        wlog("  dims:",dims,"cen:",cen)
 
         self.image0 = pixmodel.model_image(objmodel,dims,cen,cov,
                                            counts=pars['counts'], 
@@ -665,8 +674,8 @@ class ConvolvedImage(dict):
                                  "slow convolution")
 
         if self.verbose:
-            print("image0 pars")
-            pprint(self.objpars)
+            wlog("image0 pars")
+            pprint(self.objpars,stream=stderr)
 
         if self.debug:
             plt=images.multiview(self.image0,levels=7, show=False)
@@ -681,7 +690,7 @@ class ConvolvedImage(dict):
         psfpars=self.psfpars
 
         if self.verbose:
-            print("Convolving to final image")
+            wlog("Convolving to final image")
 
         dims = pars['dims']
         cen = pars['cen']
@@ -693,7 +702,7 @@ class ConvolvedImage(dict):
         psfmodel = psfpars['model']
         objmodel = pars['model']
         if (objmodel == 'gauss' and psfmodel == 'gauss') and not self.forcegauss:
-            print("doing analytic convolution of guassians for gauss")
+            wlog("doing analytic convolution of guassians for gauss")
             bothgauss=True
             ocov=pars['cov']
             pcov=psfpars['cov']
@@ -704,7 +713,7 @@ class ConvolvedImage(dict):
             image = pixmodel.model_image('gauss',dims,cen,cov,
                                        counts=pars['counts'], nsub=self.image_nsub)
         elif (objmodel == 'gauss' and psfmodel == 'dgauss') and not self.forcegauss:
-            print("doing analytic convolution of guassians for dgauss")
+            wlog("doing analytic convolution of guassians for dgauss")
             ocov=pars['cov']
             pcov1=psfpars['cov1']
             cov1 = [ocov[0]+pcov1[0],
@@ -737,7 +746,7 @@ class ConvolvedImage(dict):
                 if objmodel != 'exp' or psfmodel not in ['gauss','dgauss']:
                     raise ValueError('fconvfunc only works on exp-gauss or exp-dgauss')
 
-                print("running fconvint")
+                wlog("running fconvint")
                 if psfmodel == 'gauss':
                     image = fconv.conv_exp_gauss(dims,cen,pars['cov'], psfpars['cov'],
                                                 nsub=self.fconvint_nsub)
@@ -753,7 +762,7 @@ class ConvolvedImage(dict):
                     image /= (1+b*s2)
 
             elif self.conv == 'fconv':
-                print("running fconv")
+                wlog("running fconv")
                 if psfmodel == 'gauss':
                     image = fconv.gaussconv(self.image0, psfpars['cov'])
                 elif psfmodel == 'dgauss':
@@ -774,7 +783,7 @@ class ConvolvedImage(dict):
                 rng = 2*max(orange[1],prange[1])
                 intrange = (-rng,rng)
                 tdim = int( numpy.ceil( 2*sqrt( orange[1]**2 + prange[1]**2 ) ) )
-                print("intrange:",intrange,"needed dim:",tdim)
+                wlog("intrange:",intrange,"needed dim:",tdim)
                 c = FuncConvolver(obj_func, psf_func, intrange, epsrel=self.eps,epsabs=self.eps)
                 image = c.make_image(dims, cen)
                 image *= (pars['counts']/image.sum())
@@ -794,8 +803,8 @@ class ConvolvedImage(dict):
         self['cov_admom'] = cov_meas_admom
 
         if self.verbose:
-            print("convolved image pars")
-            pprint(self)
+            wlog("convolved image pars")
+            pprint(self,stream=stderr)
 
         if self.debug:
             plt=images.multiview(self.image,levels=7, show=False)
@@ -833,12 +842,12 @@ class ConvolvedImage(dict):
                                               nsub=self.image_nsub)
 
         psfcen = (psfdims-1.)/2.
-        print("running fft convolve")
+        wlog("running fft convolve")
         if psfmodel == 'gauss':
             psfcov = ppars['cov']*fft_nsub**2
             psf_boosted = pixmodel.model_image('gauss',psfdims,psfcen,psfcov, nsub=self.image_nsub)
 
-            print("  running fftconvolve")
+            wlog("  running fftconvolve")
             image_boosted = scipy.signal.fftconvolve(image0_boosted, psf_boosted, mode='same')
         else:
             b = ppars['cenrat']
@@ -848,9 +857,9 @@ class ConvolvedImage(dict):
             g1 = pixmodel.model_image('gauss',psfdims,psfcen,cov1, nsub=self.image_nsub)
             g2 = pixmodel.model_image('gauss',psfdims,psfcen,cov2, nsub=self.image_nsub)
 
-            print("  running fftconvolve1")
+            wlog("  running fftconvolve1")
             im1 = scipy.signal.fftconvolve(image0_boosted, g1, mode='same')
-            print("  running fftconvolve2")
+            wlog("  running fftconvolve2")
             im2 = scipy.signal.fftconvolve(image0_boosted, g2, mode='same')
 
             image_boosted = im1 + b*s2*im2
@@ -866,15 +875,15 @@ class ConvolvedImage(dict):
         mom = stat.moments(image)
 
         if self.verbose:
-            print("  psf dims:",self.psf.shape)
-            print("  psf cen: ",self.psfpars['cen'])
-            print("  image0 dims:",self.image0.shape)
-            print("  image0 cen:",self.objpars['cen'])
-            print("  boosted image0 dims:",image0_boosted.shape)
-            print("  boosted image0 cen:",cen)
+            wlog("  psf dims:",self.psf.shape)
+            wlog("  psf cen: ",self.psfpars['cen'])
+            wlog("  image0 dims:",self.image0.shape)
+            wlog("  image0 cen:",self.objpars['cen'])
+            wlog("  boosted image0 dims:",image0_boosted.shape)
+            wlog("  boosted image0 cen:",cen)
 
-            print("  fft created image dims:",image.shape)
-            print("  fft created image cen:",mom['cen'])
+            wlog("  fft created image dims:",image.shape)
+            wlog("  fft created image cen:",mom['cen'])
 
         max_shift = max( abs(mom['cen'][0]-mom0['cen'][0]), abs(mom['cen'][1]-mom0['cen'][1]) )
         if (max_shift/mom['cen'][0]-1) > 0.0033:
@@ -959,7 +968,7 @@ def test_dgauss_conv(conv='fconv'):
         sizefac = sizefac_vals[i]
         sizefac2 = sizefac**2
 
-        print("sizefac:",sizefac)
+        wlog("sizefac:",sizefac)
 
         psfpars = copy.deepcopy( psfpars1 )
 
@@ -981,7 +990,7 @@ def test_dgauss_conv(conv='fconv'):
         e2[i] = e2t
         det = conversions.cov2det(ci['cov'])
         s[i] = det**0.25
-        print("s:",s[i])
+        wlog("s:",s[i])
 
 
     etot = sqrt(e1**2 + e2**2) 
@@ -1045,7 +1054,7 @@ class FuncConvolver:
             for icol in xrange(dims[1]):
                 col=icol-cen[1]
                 if self.verbose:
-                    print("(%d,%d)" % (row,col))
+                    wlog("(%d,%d)" % (row,col))
                 im[irow,icol] = self._conv1(row,col)
         return im
 
@@ -1100,32 +1109,32 @@ def test_func_convolver_gauss(epsabs=1.4899999999999999e-08, epsrel=1.4899999999
     cen = [(dim-1)/2]*2
 
 
-    print("range1:",r1)
-    print("range2:",r2)
-    print("intrange:",intrange)
-    print("dims:",dims)
-    print("cen:",cen)
-    print("Irr expected:",Irr1+Irr2)
-    print("Irc expected:",Irc1+Irc2)
-    print("Icc expected:",Icc1+Icc2)
+    wlog("range1:",r1)
+    wlog("range2:",r2)
+    wlog("intrange:",intrange)
+    wlog("dims:",dims)
+    wlog("cen:",cen)
+    wlog("Irr expected:",Irr1+Irr2)
+    wlog("Irc expected:",Irc1+Irc2)
+    wlog("Icc expected:",Icc1+Icc2)
 
 
     c = FuncConvolver(g1,g2, intrange, epsabs=epsabs,epsrel=epsrel)
 
     imfast = c.make_image_fast(dims, cen)
     Irrfast,Ircfast,Iccfast = stat.second_moments(imfast,cen)
-    print("Irr fast:",Irrfast)
-    print("Irc fast:",Ircfast)
-    print("Icc fast:",Iccfast)
+    wlog("Irr fast:",Irrfast)
+    wlog("Irc fast:",Ircfast)
+    wlog("Icc fast:",Iccfast)
 
     im = c.make_image(dims, cen)
 
     Irracc,Ircacc,Iccacc = stat.second_moments(im,cen)
 
 
-    print("Irr acc:",Irracc)
-    print("Irc acc:",Ircacc)
-    print("Icc acc:",Iccacc)
+    wlog("Irr acc:",Irracc)
+    wlog("Irc acc:",Ircacc)
+    wlog("Icc acc:",Iccacc)
 
 
     imfast /= imfast.sum()
@@ -1168,11 +1177,11 @@ def test_func_convolver(epsabs=1.4899999999999999e-08, epsrel=1.4899999999999999
     cen = [(dim-1)/2]*2
 
 
-    print("dgrange:",dgrange)
-    print("erange:",erange)
-    print("intrange:",intrange)
-    print("dims:",dims)
-    print("cen:",cen)
+    wlog("dgrange:",dgrange)
+    wlog("erange:",erange)
+    wlog("intrange:",intrange)
+    wlog("dims:",dims)
+    wlog("cen:",cen)
 
 
     #c = Convolver(e, dg, intrange, epsabs=epsabs,epsrel=epsrel)

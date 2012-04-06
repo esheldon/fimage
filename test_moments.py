@@ -1,6 +1,7 @@
 from __future__ import print_function
 import numpy
 from numpy import arange, array, ceil, zeros, sqrt, log10
+from sys import stderr
 
 from .pixmodel import model_image
 from .statistics import second_moments
@@ -74,7 +75,7 @@ class MomentTester:
 
         for i in xrange(facvals.size):
             fac=facvals[i]
-            print("fac:",fac)
+            print("fac:",fac,file=stderr)
             dims = dims0*fac
             cov = cov0*fac**2
 
@@ -91,7 +92,7 @@ class MomentTester:
             # note factor or 3 for exp
             sigma[i] = sqrt( (cov[0] + cov[2])/2. )
 
-            print(dims)
+            print(dims,file=stderr)
 
         
         e = sqrt(e1**2 + e2**2)

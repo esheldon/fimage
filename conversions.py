@@ -2,6 +2,7 @@ from __future__ import print_function
 import numpy
 from numpy import log, sqrt, cos, sin, pi as PI, exp, linspace, \
         where, array
+from sys import stderr
 
 _fwhm_fac = 2*sqrt(2*log(2))
 
@@ -88,7 +89,7 @@ def calculate_nsigma(type,show=False):
     for nsig in [1,2,3,4,4.5]:
         perc = erf(nsig/sqrt(2))
         w,=where(ysum <= perc)
-        print("nsig:",nsig,"xval:",x[w[-1]])
+        print("nsig:",nsig,"xval:",x[w[-1]],file=stderr)
 
         xval.append(x[w[-1]])
         ival.append(w[-1])

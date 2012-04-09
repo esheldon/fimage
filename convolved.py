@@ -67,7 +67,8 @@ class ConvolvedImageFFT(dict):
         # then sample back
         self['minres'] = keys.get('minres',12)
 
-        wlog("  -> ConvolvedImage image nsub:",self['image_nsub'])
+        if self['verbose']:
+            wlog("  -> ConvolvedImage image nsub:",self['image_nsub'])
 
         self['allgauss'] = False
         if objpars['model'] == 'gauss' and psfpars['model'] in ['gauss','dgauss']:
@@ -131,7 +132,7 @@ class ConvolvedImageFFT(dict):
         self['cov_psf_admom'] = cov_admom
         self['cen_psf_admom'] = cen_admom
 
-        if self['verbose']:
+        if self['verbose'] > 1:
             wlog("PSF model")
             pprint(self.psfpars,stream=stderr)
 
@@ -158,7 +159,8 @@ class ConvolvedImageFFT(dict):
         psf = pixmodel.model_image('gauss',dims,cen,cov,nsub=self['image_nsub'])
 
         if verify:
-            wlog("    verifying gauss psf")
+            if self['verbose']:
+                wlog("    verifying gauss psf")
             self.verify_image(psf, cov)
         return psf
 
@@ -190,7 +192,8 @@ class ConvolvedImageFFT(dict):
         psf /= (1+b*s2)
 
         if verify:
-            wlog("    verifying dgauss psf")
+            if self['verbose']:
+                wlog("    verifying dgauss psf")
             self.verify_image(im1, cov1)
             self.verify_image(im2, cov2)
 
@@ -229,7 +232,7 @@ class ConvolvedImageFFT(dict):
         self['cen_image0_admom'] = cen_admom
 
 
-        if self['verbose']:
+        if self['verbose'] > 1:
             wlog("image0 pars")
             pprint(self.objpars,stream=stderr)
 
@@ -260,7 +263,8 @@ class ConvolvedImageFFT(dict):
                                       nsub=self['image_nsub'])
 
         if verify:
-            wlog("    verifying image0")
+            if self['verbose']:
+                wlog("    verifying image0")
             self.verify_image(image0, cov)
         return image0
 
@@ -275,7 +279,8 @@ class ConvolvedImageFFT(dict):
         psf = self.psf
 
         if (self['allgauss']) and not self['forcegauss']:
-            wlog("doing analytic convolution of guassians for gauss")
+            if self['verbose']:
+                wlog("doing analytic convolution of guassians for gauss")
             image = self.get_analytic_conv()
         else:
             image = self.get_fft_conv()
@@ -295,7 +300,7 @@ class ConvolvedImageFFT(dict):
         self['cov_admom'] = cov_admom
         self['cen_admom'] = cen_admom
 
-        if self['verbose']:
+        if self['verbose'] > 1:
             wlog("convolved image pars")
             pprint(self,stream=stderr)
 
@@ -340,7 +345,7 @@ class ConvolvedImageFFT(dict):
         if erel > eps:
             raise ValueError("moments pdiff %f not within tolerance %f" % (erel,eps))
         
-        if self['verbose']:
+        if self['verbose'] > 1:
             wlog("        moment fdiff: %e" % pdiff)
             wlog("        ellip  fdiff:   %e" % erel)
 
@@ -469,8 +474,9 @@ class ConvolvedImageFFT(dict):
             self['edims'] = self['dims']
             self['ecen'] = self['cen']
 
-        wlog("  -> minres:    ",self['minres'])
-        wlog("  -> expand_fac:",self['expand_fac'])
+        if self['verbose']:
+            wlog("  -> minres:    ",self['minres'])
+            wlog("  -> expand_fac:",self['expand_fac'])
 
     def _get_dimcen(self, T, sigfac=4.5):
         sigma = sqrt(T/2)
@@ -515,9 +521,10 @@ class ConvolvedImage(dict):
         self.fft_nsub = keys.get('fft_nsub',1)
         self.fconvint_nsub = keys.get('fconvint_nsub',4)
 
-        wlog("  -> ConvolvedImage image nsub:",self.image_nsub)
-        if self.conv == 'fft':
-            wlog("  -> ConvolvedImage fft_nsub:",self.fft_nsub)
+        if self['verbose']:
+            wlog("  -> ConvolvedImage image nsub:",self.image_nsub)
+            if self.conv == 'fft':
+                wlog("  -> ConvolvedImage fft_nsub:",self.fft_nsub)
 
 
         self.eps = keys.get('eps', 1.e-4)

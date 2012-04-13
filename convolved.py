@@ -316,7 +316,7 @@ class ConvolvedImageFFT(dict):
 
         Ensure that the *unweighted* moments are equal to input moments
 
-        This is only useful for expaned images since unweighted moments don't
+        This is only useful for expanded images since unweighted moments don't
         include sub-pixel effects
 
         '''

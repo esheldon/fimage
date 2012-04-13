@@ -91,9 +91,10 @@ def fmom(image, nsub=1):
         else:
             _fmom.mom_f4(image,cen,cov)
     else:
-        # note we only have an f4 version of this, so
-        # f8 will be converted
-        _fmom.mom_bilin_f4(image,nsub,cen,cov)
+        if isdouble:
+            _fmom.mom_bilin_f8(image,nsub,cen,cov)
+        else:
+            _fmom.mom_bilin_f4(image,nsub,cen,cov)
 
     cen -= 1
 

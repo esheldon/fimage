@@ -1668,17 +1668,14 @@ def test_conv_exp_gauss():
 
 
 
-def example_pars(objmodel='exp', psfmodel='gauss'):
-    # size psf over size obj squared
-    s2=0.75
-    obj_ellip=0.3
+def example_pars(objmodel='exp', psfmodel='gauss', s2=1.0, ellip=0.3, theta=10):
     if psfmodel == 'gauss':
         psf_sigma=1.4
         cov=[psf_sigma**2, 0.0, psf_sigma**2]
         psfpars={'model':psfmodel,'cov':cov}
     elif psfmodel == 'dgauss':
         sigma=1.4
-        sigrat=1.2
+        sigrat=2.3
         cenrat=0.09
 
         cov1=array([sigma**2, 0.0, sigma**2])
@@ -1699,7 +1696,7 @@ def example_pars(objmodel='exp', psfmodel='gauss'):
 
     # very approx
     obj_sigma = psf_sigma/sqrt(s2)
-    cov=conversions.ellip2mom(2*obj_sigma**2,e=obj_ellip,theta=10)
+    cov=conversions.ellip2mom(2*obj_sigma**2,e=ellip,theta=theta)
     objpars = {'model':objmodel,'cov':cov}
 
     return objpars, psfpars

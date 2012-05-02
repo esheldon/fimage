@@ -41,7 +41,7 @@ class ConvolvedImageFFT(dict):
 
     The relevant parameter for expansion should be the ratio of the "sigma" of
     the smallest object to the pixel size.  For the convolutions we always want
-    to be at sigma >> 1, say 12.  The images are verified t have moments and
+    to be at sigma >> 1, say 12.  The images are verified to have moments and
     ellip within 0.001 of the true.
 
     Note the center is always placed exactly on a pixel and the expansion factors
@@ -116,7 +116,8 @@ class ConvolvedImageFFT(dict):
         mom = stat.fmom(self.psf)
         cov_uw = mom['cov']
         cen_uw = mom['cen']
-        res = admom.admom(self.psf, cen_uw[0],cen_uw[1], guess=(cov_uw[0]+cov_uw[2])/2)
+        res = admom.admom(self.psf,cen_uw[0],cen_uw[1],
+                          guess=(cov_uw[0]+cov_uw[2])/2)
 
         
         cov_admom = array([res['Irr'],res['Irc'],res['Icc']])
@@ -217,7 +218,8 @@ class ConvolvedImageFFT(dict):
         mom = stat.fmom(self.image0)
         cov_uw = mom['cov']
         cen_uw = mom['cen']
-        res = admom.admom(self.image0, cen_uw[0],cen_uw[1], guess=(cov_uw[0]+cov_uw[2])/2)
+        res = admom.admom(self.image0, cen_uw[0],cen_uw[1], 
+                          guess=(cov_uw[0]+cov_uw[2])/2)
         
         cov_admom = array([res['Irr'],res['Irc'],res['Icc']])
         cen_admom = array([res['wrow'], res['wcol']])
@@ -291,7 +293,8 @@ class ConvolvedImageFFT(dict):
         cov_uw = mom_uw['cov']
         cen_uw = mom_uw['cen']
 
-        res = admom.admom(self.image, cen_uw[0], cen_uw[1], guess=(cov_uw[0]+cov_uw[2])/2)
+        res = admom.admom(self.image, cen_uw[0], cen_uw[1], 
+                          guess=(cov_uw[0]+cov_uw[2])/2)
         cov_admom = array([res['Irr'],res['Irc'],res['Icc']])
         cen_admom = array([res['wrow'], res['wcol']])
 
@@ -329,7 +332,8 @@ class ConvolvedImageFFT(dict):
 
         pdiff = max(rowrel,colrel)
         if pdiff > eps:
-            raise ValueError("moments pdiff %f not within tolerance %f" % (pdiff,eps))
+            raise ValueError("moments pdiff %f not within "
+                             "tolerance %f" % (pdiff,eps))
 
         T = mcov[2] + mcov[0]
         e1 = (mcov[2]-mcov[1])/T

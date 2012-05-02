@@ -54,9 +54,9 @@ def model_image(model, dims, cen, cov, nsub=4, counts=1.0, order='f', dtype='f8'
     Returns
     -------
     Image: 2-d array
-        The returned image is a 2-d numpy array of 4 byte floats.  The image if
-        in fortran-contiguous order by default; use order='c' to get it in 
-        c order.
+        The returned image is a 2-d numpy array of 8 or 4 byte floats.  The
+        image if in fortran-contiguous order by default; use order='c' to get
+        it in c order.
 
     Example
     -------
@@ -230,7 +230,46 @@ def double_gauss(dims, cen, cenrat, cov1,cov2,
     return im
 
 
-def ogrid_image(model, dims, cen, cov, counts=1.0, order='f', dtype='f8'):
+def ogrid_image(model, dims, cen, cov, counts=1.0, dtype='f8'):
+    """
+    Create in image with the specified model using ogrid from numpy
+
+    Parameters
+    ----------
+    model: string
+        The model type: 'gauss', 'exp', 'dev'
+    dims: sequence
+        The dimensions of the image
+    cen: sequence
+        The center in [row,col]
+    cov: sequence
+        A three element sequence representing the covariance matrix
+        [Irr,Irc,Icc].  Note this only corresponds exactly to the moments of
+        the object for a gaussian model.
+
+        For an simple bivariate gaussian, Irr and Icc are sigma1**2 sigma2**2,
+        but using the full matrix allows for other angles of oriention.
+
+    counts: number, optional
+        The total counts in the image.  Default 1.0.  If None, the image is not
+        normalized. 
+
+    dtype: string or numpy dtype
+        The data type, default 'f8'.  Can be 4-byte float or 8 byte float.
+
+    Returns
+    -------
+    Image: 2-d array
+        The returned image is a 2-d numpy array of 8 byte floats.
+
+    Example
+    -------
+        dims=[41,41]
+        cen=[20,20]
+        cov=[8,2,4] # [Irr,Irc,Icc]
+
+        im=ogrid_image('gauss',dims,cen,cov)
+    """
 
     Irr,Irc,Icc = cov
     det = Irr*Icc - Irc**2

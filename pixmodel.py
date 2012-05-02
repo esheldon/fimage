@@ -194,9 +194,8 @@ def double_gauss(dims, cen, cenrat, cov1,cov2,
     det = Irr*Icc-Irc
     
         b = cenrat
-        s2 = sqrt(det2/det1)
 
-        image = (im1 + b*s2*im2)/(1+b*s2)
+        image = (im1 + b*im2)/(1+b)
 
     """
 
@@ -212,13 +211,12 @@ def double_gauss(dims, cen, cenrat, cov1,cov2,
         raise ValueError("determinat of first covariance matrix is 0")
     if det2 == 0:
         raise ValueError("determinat of second covariance matrix is 0")
-    s2 = numpy.sqrt( det2/det1 )
 
     im1 = model_image('gauss',dims,cen,cov1,nsub=nsub,dtype=dtype)
     im2 = model_image('gauss',dims,cen,cov2,nsub=nsub,dtype=dtype)
 
-    im = im1 + b*s2*im2
-    im /= (1+b*s2)
+    im = im1 + b*im2
+    im /= (1+b)
 
     return im
 

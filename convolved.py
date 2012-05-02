@@ -109,14 +109,17 @@ class ConvolvedImageFFT(dict):
         if psfmodel == 'gauss':
             self.psf = self.get_gauss_psf()
         elif psfmodel == 'dgauss':
-            self.psf, self.psfpars['s2'] = self.get_dgauss_psf()
+            psf,s2 = self.get_dgauss_psf()
+            self.psf = psf
+            self.psfpars['s2'] = s2
         else:
             raise ValueError("unknown model type: '%s'" % psfmodel)
 
         mom = stat.fmom(self.psf)
         cov_uw = mom['cov']
         cen_uw = mom['cen']
-        res = admom.admom(self.psf,cen_uw[0],cen_uw[1],
+
+        res = admom.admom(self.psf,cen_uw[0],cen_uw[1], 
                           guess=(cov_uw[0]+cov_uw[2])/2)
 
         
@@ -189,8 +192,10 @@ class ConvolvedImageFFT(dict):
         im1 = pixmodel.model_image('gauss',dims,cen,cov1, nsub=self['image_nsub'])
         im2 = pixmodel.model_image('gauss',dims,cen,cov2, nsub=self['image_nsub'])
         b = pars['cenrat']
-        psf = im1 + b*s2*im2
-        psf /= (1+b*s2)
+        #psf = im1 + b*s2*im2
+        #psf /= (1+b*s2)
+        psf = im1 + b*im2
+        psf /= (1+b)
 
         if verify:
             if self['verbose']:
@@ -314,7 +319,7 @@ class ConvolvedImageFFT(dict):
 
 
 
-    def verify_image(self, image, cov, eps=1.e-3):
+    def verify_image(self, image, cov, eps=2.e-3):
         '''
 
         Ensure that the *unweighted* moments are equal to input moments
@@ -332,7 +337,7 @@ class ConvolvedImageFFT(dict):
 
         pdiff = max(rowrel,colrel)
         if pdiff > eps:
-            raise ValueError("moments pdiff %f not within "
+            raise ValueError("row pdiff %f not within "
                              "tolerance %f" % (pdiff,eps))
 
         T = mcov[2] + mcov[0]
@@ -375,7 +380,8 @@ class ConvolvedImageFFT(dict):
         mom0 = stat.moments(self.image0)
         mom = stat.moments(image)
 
-        max_shift = max( abs(mom['cen'][0]-mom0['cen'][0]), abs(mom['cen'][1]-mom0['cen'][1]) )
+        max_shift = max( abs(mom['cen'][0]-mom0['cen'][0]), 
+                         abs(mom['cen'][1]-mom0['cen'][1]) )
         if (max_shift/mom['cen'][0]-1) > 0.0033:
             raise ValueError("Center rel shifted greater than 0.0033: %f" % max_shift)
 
@@ -409,10 +415,12 @@ class ConvolvedImageFFT(dict):
             im2 = pixmodel.model_image('gauss',dims,cen,cov2,
                                        counts=pars['counts'], 
                                        nsub=self['image_nsub'])
-            s2 = psfpars['s2']
+            #s2 = psfpars['s2']
             b = psfpars['cenrat']
-            image = im1 + b*s2*im2
-            image /= (1+b*s2)
+            #image = im1 + b*s2*im2
+            #image /= (1+b*s2)
+            image = im1 + b*im2
+            image /= (1+b)
 
         return image
 
@@ -744,8 +752,10 @@ class ConvolvedImage(dict):
 
             s2 = psfpars['s2']
             b = psfpars['cenrat']
-            image = im1 + b*s2*im2
-            image /= (1+b*s2)
+            #image = im1 + b*s2*im2
+            #image /= (1+b*s2)
+            image = im1 + b*im2
+            image /= (1+b)
 
         else:
             if not have_scipy:
@@ -769,8 +779,10 @@ class ConvolvedImage(dict):
                     im2= fconv.conv_exp_gauss(dims,cen,pars['cov'], psfpars['cov2'],
                                               nsub=self.fconvint_nsub)
 
-                    image = im1 + b*s2*im2
-                    image /= (1+b*s2)
+                    #image = im1 + b*s2*im2
+                    #image /= (1+b*s2)
+                    image = im1 + b*im2
+                    image /= (1+b)
 
             elif self.conv == 'fconv':
                 wlog("running fconv")
@@ -782,8 +794,10 @@ class ConvolvedImage(dict):
                     im1 = fconv.gaussconv(self.image0, psfpars['cov1'])
                     im2 = fconv.gaussconv(self.image0, psfpars['cov2'])
 
-                    image = im1 + b*s2*im2
-                    image /= (1+b*s2)
+                    #image = im1 + b*s2*im2
+                    #image /= (1+b*s2)
+                    image = im1 + b*im2
+                    image /= (1+b)
 
             elif self.conv == 'func': 
                 psf_func=self.psf_func
@@ -856,25 +870,33 @@ class ConvolvedImage(dict):
         wlog("running fft convolve")
         if psfmodel == 'gauss':
             psfcov = ppars['cov']*fft_nsub**2
-            psf_boosted = pixmodel.model_image('gauss',psfdims,psfcen,psfcov, nsub=self.image_nsub)
+            psf_boosted = pixmodel.model_image('gauss',psfdims,psfcen,psfcov, 
+                                               nsub=self.image_nsub)
 
             wlog("  running fftconvolve")
-            image_boosted = scipy.signal.fftconvolve(image0_boosted, psf_boosted, mode='same')
-        else:
+            image_boosted = scipy.signal.fftconvolve(image0_boosted, psf_boosted, 
+                                                     mode='same')
+        elif psfmodel == 'dgauss':
             b = ppars['cenrat']
             s2 = ppars['s2']
             cov1 = ppars['cov1']*fft_nsub**2
             cov2 = ppars['cov2']*fft_nsub**2
-            g1 = pixmodel.model_image('gauss',psfdims,psfcen,cov1, nsub=self.image_nsub)
-            g2 = pixmodel.model_image('gauss',psfdims,psfcen,cov2, nsub=self.image_nsub)
+            g1 = pixmodel.model_image('gauss',psfdims,psfcen,cov1, 
+                                      nsub=self.image_nsub)
+            g2 = pixmodel.model_image('gauss',psfdims,psfcen,cov2, 
+                                      nsub=self.image_nsub)
 
             wlog("  running fftconvolve1")
             im1 = scipy.signal.fftconvolve(image0_boosted, g1, mode='same')
             wlog("  running fftconvolve2")
             im2 = scipy.signal.fftconvolve(image0_boosted, g2, mode='same')
 
-            image_boosted = im1 + b*s2*im2
-            image_boosted /= (1+b*s2)
+            #image_boosted = im1 + b*s2*im2
+            #image_boosted /= (1+b*s2)
+            image_boosted = im1 + b*im2
+            image_boosted /= (1+b)
+        else:
+            raise ValueError("unsupported psf model: '%s'" % psfmodel)
 
         if fft_nsub > 1:
             image = rebin(image_boosted, fft_nsub)

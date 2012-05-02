@@ -268,7 +268,7 @@ def ogrid_turb_psf(dims, fwhm, counts=1.):
     Create an image of a PSF produced by atmospheric turbulence.  
     
     The image is created in k space using ogrid_turb_kimage and then Fourier
-    transformed.  The form in k space is exp(-0.5(k/k0)^(5/3))
+    transformed.  The form in k space is exp(-(k/k0)^(5/3))
 
     parameters
     ----------

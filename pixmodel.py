@@ -312,7 +312,8 @@ def ogrid_turb_psf(dims, fwhm, counts=1.):
     parameters
     ----------
     dims: [nrows,ncols]
-        The dimensions of the result.  Must be square and even.
+        The dimensions of the result.  Must be square.  If you
+        want the psf perfectly centered, make the dims even.
     fwhm:
         The fwhm for the result in real space.  Note
             k0 = 2.92/fwhm
@@ -321,23 +322,20 @@ def ogrid_turb_psf(dims, fwhm, counts=1.):
     """
     if dims[0] != dims[1]:
         raise ValueError("only square turbulence psf allowed")
-    if (dims[0] % 2) != 0:
-        raise ValueError("only even dimensions for turbulence psf")
 
     # Always use 2**n-sized FFT
     kdims = 2**ceil(log2(dims))
-    # on a pixel
     kcen = kdims/2.
 
     k0 = 2.92/fwhm
-    # now account for scaling in fft
+    # in fft units
     k0 *= kdims[0]/(2*pi)
 
     otfk = ogrid_turb_kimage(kdims, kcen, k0)
-
-    im = fftn(otfk)[0:dims[0], 0:dims[1]]
+    im = fftn(otfk)
     im = sqrt(im.real**2 + im.imag**2)
     im = fftshift(im)
+    im = _centered(im, dims)
 
     im *= counts/im.sum()
     return im
@@ -373,5 +371,14 @@ def ogrid_turb_kimage(dims, cen, k0):
 
     image = exp(-arg)
     return image
+
+def _centered(arr, newsize):
+    # Return the center newsize portion of the array.
+    newsize = array(newsize,dtype='i8')
+    currsize = array(arr.shape)
+    startind = (currsize - newsize) / 2
+    endind = startind + newsize
+    myslice = [slice(startind[k], endind[k]) for k in range(len(endind))]
+    return arr[tuple(myslice)]
 
 

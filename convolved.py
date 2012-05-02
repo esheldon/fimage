@@ -1,7 +1,9 @@
 from __future__ import print_function
 from pprint import pprint
 import numpy
-from numpy import sqrt, exp, array
+from numpy import sqrt, exp, array, ceil, log2, pi, ogrid
+from numpy.fft import fftshift
+
 import images
 from sys import stderr
 
@@ -17,6 +19,7 @@ import admom
 
 try:
     import scipy.signal
+    from scipy.fftpack import ifftn, fftn
     have_scipy=True
 except:
     have_scipy=False
@@ -28,6 +31,361 @@ def wlog(*args):
         if i < (narg-1):
             stderr.write(" ")
     stderr.write('\n')
+
+
+def convolve_gauss(image, sigma, get_psf=False):
+    """
+    Convolve with a round gaussian.
+    
+    The kernel is generated and applied in fourier space.
+
+    Note for more general convolutions, use the ConvolvedImageFFT class.
+
+    parameters
+    ----------
+    image:
+        A two dimensional image.
+    sigma:
+        The sigma of the gaussian kernel.
+    get_psf:
+        If True, return an image of the psf as well.
+            (im, psf)
+        Dims should be even to get a psf that is centered
+    """
+
+    dims = array(image.shape)
+    if dims[0] != dims[1]:
+        raise ValueError("only square images for now")
+
+    # Always use 2**n-sized FFT
+    size=dims
+    kdims = 2**ceil(log2(size))
+    kcen = kdims/2.
+
+    imfft = fftn(image,kdims)
+
+    krow,kcol=ogrid[0:kdims[0], 0:kdims[1]]
+
+    kr = array(krow - kcen[0], dtype='f8')
+    kc = array(kcol - kcen[1], dtype='f8')
+    k2 = kr**2 + kc**2
+
+    ksigma = 1.0/sigma
+    # get into fft units
+    ksigma *= kdims[0]/(2.*pi)
+
+    ksigma2 = ksigma**2
+    gk = exp(-0.5*k2/ksigma2)
+    gk = fftshift(gk) 
+
+    ckim = gk*imfft
+
+    cim = ifftn(ckim)[0:dims[0], 0:dims[1]]
+    cim = cim.real
+
+    if get_psf:
+        psf = ifftn(gk)
+        psf = fftshift(psf)
+        psf = sqrt(psf.real**2 + psf.imag**2)
+        psf = pixmodel._centered(psf, dims)
+        return cim, psf
+    else:
+        return cim
+
+
+def convolve_turb(image, fwhm, get_psf=False):
+    """
+    Convolve the input image with a turbulent psf
+
+    parameters
+    ----------
+    image:
+        A numpy array
+    fwhm:
+        The FWHM of the turbulent psf.
+    get_psf:
+        If True, return a tuple (im,psf)
+
+    The images dimensions should be square, and even in order for the psf to be
+    centered.
+    """
+
+    dims = array(image.shape)
+    if dims[0] != dims[1]:
+        raise ValueError("only square images for now")
+
+    # Always use 2**n-sized FFT
+    kdims = 2**ceil(log2(dims))
+    kcen = kdims/2.
+
+    imfft = fftn(image,kdims)
+
+    k0 = 2.92/fwhm
+    # in fft units
+    k0 *= kdims[0]/(2*pi)
+
+    otf = pixmodel.ogrid_turb_kimage(kdims, kcen, k0)
+    otf = fftshift(otf) 
+
+    ckim = otf*imfft
+    cim = ifftn(ckim)[0:dims[0], 0:dims[1]]
+    cim = cim.real
+
+    if get_psf:
+        psf = ifftn(otf)
+        psf = fftshift(psf)
+        psf = sqrt(psf.real**2 + psf.imag**2)
+        psf = pixmodel._centered(psf, dims)
+        return cim, psf
+    else:
+        return cim
+
+
+
+
+class ConvolvedTurbulentPSF(dict):
+    def __init__(self, objpars, psfpars, **keys):
+
+        self.objpars=objpars
+        self.psfpars=psfpars
+
+        if self.objpars['model'] not in ['gauss','exp']:
+            raise ValueError("only support gauss/exp objects")
+
+        self['image_nsub'] = keys.get('image_nsub', 16)
+
+        # for calculations we will demand sigma > minres pixels
+        # then sample back
+        self['minres'] = keys.get('minres',12)
+
+        self.set_cov_and_etrue()
+        self.set_dims()
+        self.make_image0()
+        self.make_convolved_image()
+
+    def set_cov_and_etrue(self):
+        self.objpars['cov'] = array(self.objpars['cov'],dtype='f8')
+
+        cov = self.objpars['cov']
+        T=(cov[2]+cov[0])
+        self['covtrue'] = self.objpars['cov']
+        self['e1true'] = (cov[2]-cov[0])/T
+        self['e2true'] = 2*cov[1]/T
+        self['etrue'] = sqrt( self['e1true']**2 + self['e2true']**2 )
+
+    def set_dims(self):
+        """
+
+        Need huge space around the psf because of the wings
+
+        """
+        psffac=10.0
+        if self.objpars['model'] == 'exp':
+            objfac=7.0
+        else:
+            objfac=4.5
+        imcov=self.objpars['cov']
+        fwhm = self.psfpars['psf_fwhm']
+        imsize = sqrt( (psffac*fwhm)**2 + objfac**2*(imcov[0] + imcov[2]))
+        dims = array([imsize]*2,dtype='i8')
+
+        if (dims[0] % 2) != 0:
+            dims += 1
+        self['dims'] = dims
+        self['cen'] = dims/2
+
+        sigma_obj = sqrt((imcov[0]+imcov[2])/2)
+
+        # very approximate
+        sigma_psf = fwhm/1.4
+        sigma_min = min(sigma_psf,sigma_obj)
+
+        # do we need to expand before convolving?
+        if sigma_min > self['minres']:
+            fac=1
+        else:
+            # find the expansion that will get sigma > minres
+            fac = int(self['minres']/sigma_min)
+
+        self['expand_fac'] = fac
+        if fac > 1:
+            # modify the dims to be odd, so the rebin will
+            # give the right center
+            # this will force the psf to be off center, but 
+            # not much we can do!
+            if (self['dims'][0] % 2) == 0:
+                self['dims'] += 1
+                self['cen'] = (self['dims']-1.)/2.
+            self['edims'] = fac*self['dims']
+            self['ecen'] = (self['edims']-1)/2
+            self.objpars['ecov'] = self.objpars['cov']*fac**2
+        else:
+            self['edims'] = self['dims']
+            self['ecen'] = self['cen']
+            self.objpars['ecov'] = self.objpars['cov']
+
+    def make_image0(self):
+        """
+        Create the unexpanded image0 and get some statistics
+        """
+
+        self.image0 = self.get_image0()
+        self.add_image0_stats()
+
+    def get_image0(self, verify=False, expand=False):
+        """
+        Create the pre-psf model
+
+        run these first
+            self.set_cov_and_etrue()
+            self.set_dims()
+        """
+
+        pars = self.objpars
+        objmodel = pars['model']
+
+        if expand:
+            cen  = self['ecen']
+            dims = self['edims']
+            cov  = pars['ecov']
+        else:
+            cen  = self['cen']
+            dims = self['dims']
+            cov  = pars['cov']
+
+        image0 = pixmodel.model_image(objmodel,dims,cen,cov,
+                                      nsub=self['image_nsub'])
+
+        if verify:
+            self.verify_image(image0, cov)
+        return image0
+
+    def make_convolved_image(self):
+        """
+        Make an image convolved with the psf.
+
+        If we are expanding, we create an expanded pre-psf image and convolve
+        it.  The convolved image and psf are rebinned back.
+        """
+        fwhm = self.psfpars['psf_fwhm']
+        if self['expand_fac'] > 1:
+            eimage0 = self.get_image0(expand=True, verify=True)
+            efwhm = fwhm*self['expand_fac']
+            eimage,epsf = convolve_turb(eimage0,efwhm,get_psf=True)
+            image = rebin(eimage, self['expand_fac'])
+            psf   = rebin(epsf, self['expand_fac'])
+        else:
+            image,psf = convolve_turb(self.image0,fwhm,get_psf=True)
+
+        self.image = image
+        self.psf   = psf
+
+        self.add_psf_stats()
+        self.add_image_stats()
+
+    def add_image0_stats(self):
+        mom = stat.fmom(self.image0)
+        cov_meas = mom['cov']
+        cen_meas = mom['cen']
+
+        res = admom.admom(self.image0, cen_meas[0],cen_meas[1], 
+                          guess=(cov_meas[0]+cov_meas[1])/2 )
+        cov_meas_admom = array([res['Irr'],res['Irc'],res['Icc']])
+
+        pars = self.objpars
+
+        mom = stat.fmom(self.image0)
+        cov_uw = mom['cov']
+        cen_uw = mom['cen']
+        res = admom.admom(self.image0, cen_uw[0],cen_uw[1], 
+                          guess=(cov_uw[0]+cov_uw[2])/2)
+        
+        cov_admom = array([res['Irr'],res['Irc'],res['Icc']])
+        cen_admom = array([res['wrow'], res['wcol']])
+
+        pars['cov_uw'] = cov_uw
+        pars['cen_uw'] = cen_uw
+        pars['cov_admom'] = cov_admom
+        pars['cen_admom'] = cen_admom
+        self['cov_image0_uw'] = cov_uw
+        self['cen_image0_uw'] = cen_uw
+        self['cov_image0_admom'] = cov_admom
+        self['cen_image0_admom'] = cen_admom
+
+
+    def add_psf_stats(self):
+        mom = stat.fmom(self.psf)
+        cov_uw = mom['cov']
+        cen_uw = mom['cen']
+
+        res = admom.admom(self.psf,cen_uw[0],cen_uw[1], 
+                          guess=(cov_uw[0]+cov_uw[2])/2)
+
+        
+        cov_admom = array([res['Irr'],res['Irc'],res['Icc']])
+        cen_admom = array([res['wrow'], res['wcol']])
+
+        self.psfpars['cov_uw'] = cov_uw
+        self.psfpars['cen_uw'] = cen_uw
+        self.psfpars['cov_admom'] = cov_admom
+        self.psfpars['cen_admom'] = cen_admom
+
+        self['cov_psf_uw'] = cov_uw
+        self['cen_psf_uw'] = cen_uw
+        self['cov_psf_admom'] = cov_admom
+        self['cen_psf_admom'] = cen_admom
+
+    def add_image_stats(self):
+        mom_uw = stat.fmom(self.image)
+        cov_uw = mom_uw['cov']
+        cen_uw = mom_uw['cen']
+
+        res = admom.admom(self.image, cen_uw[0], cen_uw[1], 
+                          guess=(cov_uw[0]+cov_uw[2])/2)
+        cov_admom = array([res['Irr'],res['Irc'],res['Icc']])
+        cen_admom = array([res['wrow'], res['wcol']])
+
+        self['cov_uw'] = cov_uw
+        self['cen_uw'] = cen_uw
+        self['cov_admom'] = cov_admom
+        self['cen_admom'] = cen_admom
+
+    def verify_image(self, image, cov, eps=2.e-3):
+        '''
+
+        Ensure that the *unweighted* moments are equal to input moments
+
+        This is only useful for expanded images since unweighted moments don't
+        include sub-pixel effects
+
+        '''
+
+        mom = stat.fmom(image)
+        mcov = mom['cov']
+
+        rowrel = abs(mcov[0]/cov[0]-1)
+        colrel = abs(mcov[2]/cov[2]-1)
+
+        pdiff = max(rowrel,colrel)
+        if pdiff > eps:
+            raise ValueError("row pdiff %f not within "
+                             "tolerance %f" % (pdiff,eps))
+
+        T = mcov[2] + mcov[0]
+        e1 = (mcov[2]-mcov[1])/T
+        e2 = 2*mcov[1]/T
+        e = sqrt(e1**2 + e2**2)
+
+        Ttrue = cov[2] + cov[0]
+        e1true = (cov[2]-cov[1])/T
+        e2true = 2*cov[1]/T
+        etrue = sqrt(e1true**2 + e2true**2)
+
+        erel = abs(e/etrue-1)
+        if erel > eps:
+            raise ValueError("moments pdiff %f not within "
+                             "tolerance %f" % (erel,eps))
+        
 
 
 class ConvolvedImageFFT(dict):
@@ -92,25 +450,26 @@ class ConvolvedImageFFT(dict):
         '''
         Make sure all the covariances are arrays
         '''
-        self.objpars['cov'] = array(self.objpars['cov'],dtype='f4')
+        self.objpars['cov'] = array(self.objpars['cov'],dtype='f8')
 
         psfmodel = self.psfpars['model']
         if psfmodel == 'gauss':
-            self.psfpars['cov'] = array(self.psfpars['cov'],dtype='f4')
+            self.psfpars['cov'] = array(self.psfpars['cov'],dtype='f8')
         elif psfmodel == 'dgauss':
-            self.psfpars['cov1'] = array(self.psfpars['cov1'],dtype='f4')
-            self.psfpars['cov2'] = array(self.psfpars['cov2'],dtype='f4')
+            self.psfpars['cov1'] = array(self.psfpars['cov1'],dtype='f8')
+            self.psfpars['cov2'] = array(self.psfpars['cov2'],dtype='f8')
         elif psfmodel == 'turb':
             raise ValueError("implement turbulent psf")
+        else:
+            raise ValueError("unknown model type: '%s'" % psfmodel)
 
     def make_psf(self):
         psfmodel = self.psfpars['model']
         if psfmodel == 'gauss':
             self.psf = self.get_gauss_psf()
         elif psfmodel == 'dgauss':
-            psf,s2 = self.get_dgauss_psf()
+            psf = self.get_dgauss_psf()
             self.psf = psf
-            self.psfpars['s2'] = s2
         elif psfmodel == 'turb':
             raise ValueError("implement turbulent psf")
         else:
@@ -169,7 +528,7 @@ class ConvolvedImageFFT(dict):
             self.verify_image(psf, cov)
         return psf
 
-    def get_dgauss_psf(self, expand=False, verify=False):
+    def get_dgauss_psf(self, expand=False, verify=False, both=False):
 
         pars=self.psfpars
 
@@ -192,19 +551,21 @@ class ConvolvedImageFFT(dict):
 
         im1 = pixmodel.model_image('gauss',dims,cen,cov1, nsub=self['image_nsub'])
         im2 = pixmodel.model_image('gauss',dims,cen,cov2, nsub=self['image_nsub'])
-        b = pars['cenrat']
-        #psf = im1 + b*s2*im2
-        #psf /= (1+b*s2)
-        psf = im1 + b*im2
-        psf /= (1+b)
 
-        if verify:
-            if self['verbose']:
-                wlog("    verifying dgauss psf")
-            self.verify_image(im1, cov1)
-            self.verify_image(im2, cov2)
+        if both:
+            return im1,im2
+        else:
+            b = pars['cenrat']
+            psf = im1 + b*im2
+            psf /= (1+b)
 
-        return psf, s2
+            if verify:
+                if self['verbose']:
+                    wlog("    verifying dgauss psf")
+                self.verify_image(im1, cov1)
+                self.verify_image(im2, cov2)
+
+            return psf
 
     def make_image0(self):
         self.image0 = self.get_image0()
@@ -364,18 +725,30 @@ class ConvolvedImageFFT(dict):
 
     def get_fft_conv(self):
         if self['expand_fac'] > 1:
+
+            eimage0 = self.get_image0(expand=True, verify=True)
             psfmodel = self.psfpars['model']
             if psfmodel == 'gauss':
                 epsf = self.get_gauss_psf(expand=True, verify=True)
+
+                eimage = scipy.signal.fftconvolve(eimage0, epsf, mode='same')
+                image = rebin(eimage, self['expand_fac'])
+
             elif psfmodel == 'dgauss':
-                epsf, s2 = self.get_dgauss_psf(expand=True, verify=True)
+
+                epsf1,epsf2 = \
+                    self.get_dgauss_psf(expand=True, verify=True, both=True)
+                eimage1 = scipy.signal.fftconvolve(eimage0, epsf1, mode='same')
+                eimage2 = scipy.signal.fftconvolve(eimage0, epsf2, mode='same')
+                b=self.psfpars['cenrat']
+                eimage = (eimage1 + b*eimage2)/(1+b)
+
             elif psfmodel == 'turb':
                 raise ValueError("implement turbulent psf")
             else:
                 raise ValueError("unknown model type: '%s'" % psfmodel)
 
-            eimage0 = self.get_image0(expand=True, verify=True)
-            eimage = scipy.signal.fftconvolve(eimage0, epsf, mode='same')
+            #eimage = scipy.signal.fftconvolve(eimage0, epsf, mode='same')
             image = rebin(eimage, self['expand_fac'])
         else:
             image = scipy.signal.fftconvolve(self.image0, self.psf, mode='same')
@@ -1292,3 +1665,42 @@ def test_conv_exp_gauss():
     ci_int = ConvolvedImage(objpars_hires, psfpars_hires, conv='fconvint', fconvint_nsub=1)
 
     images.compare_images(ci_fft.image, ci_int.image, label1='fft', label2='int')
+
+
+
+def example_pars(objmodel='exp', psfmodel='gauss'):
+    # size psf over size obj squared
+    s2=0.75
+    obj_ellip=0.3
+    if psfmodel == 'gauss':
+        psf_sigma=1.4
+        cov=[psf_sigma**2, 0.0, psf_sigma**2]
+        psfpars={'model':psfmodel,'cov':cov}
+    elif psfmodel == 'dgauss':
+        sigma=1.4
+        sigrat=1.2
+        cenrat=0.09
+
+        cov1=array([sigma**2, 0.0, sigma**2])
+        cov2=cov1*sigrat**2
+        psfpars={'model':psfmodel,'cov1':cov1,'cov2':cov2,
+                 'cenrat':cenrat}
+
+        psum = 1+cenrat
+        cov11 = (cov1[0] + cov2[0]*cenrat)/psum
+        cov22 = (cov1[2] + cov2[2]*cenrat)/psum
+        psf_sigma = sqrt( (cov11+cov22)/2)
+    elif psfmodel=='turb':
+        fwhm=3.3
+        psfpars={'model':psfmodel,'psf_fwhm':fwhm}
+        psf_sigma = fwhm/1.4
+    else:
+        raise ValueError("unknown psf model '%s'" % psfmodel)
+
+    # very approx
+    obj_sigma = psf_sigma/sqrt(s2)
+    cov=conversions.ellip2mom(2*obj_sigma**2,e=obj_ellip,theta=10)
+    objpars = {'model':objmodel,'cov':cov}
+
+    return objpars, psfpars
+

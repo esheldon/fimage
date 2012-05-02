@@ -1,6 +1,15 @@
 from __future__ import print_function
 
+try:
+    from scipy.fftpack import fftn
+    have_scipy=True
+except:
+    have_scipy=False
+
 import numpy
+from numpy import ogrid, array, sqrt, exp, ceil, log2,  pi
+from numpy.fft import fftshift
+
 import _fimage
 
 _tmap={'gauss':1,'exp':2,'dev':3}
@@ -233,7 +242,7 @@ def ogrid_image(model, dims, cen, cov, counts=1.0, order='f', dtype='f8'):
     Wcc = Icc/det
 
     # ogrid is so useful
-    row,col=numpy.ogrid[0:dims[0], 0:dims[1]]
+    row,col=ogrid[0:dims[0], 0:dims[1]]
 
     rm = numpy.array(row - cen[0], dtype=dtype)
     cm = numpy.array(col - cen[1], dtype=dtype)
@@ -244,12 +253,86 @@ def ogrid_image(model, dims, cen, cov, counts=1.0, order='f', dtype='f8'):
     if model == 'gauss':
         rr = 0.5*rr
     elif model == 'exp':
-        rr = numpy.sqrt(rr*3.)
+        rr = sqrt(rr*3.)
     elif model == 'dev':
         rr = 7.67*( (rr)**(.125) -1 )
     else: 
         raise ValueError("model must be one of gauss, exp, or dev")
 
-    image = numpy.exp(-rr)
+    image = exp(-rr)
 
     return image
+
+def ogrid_turb_psf(dims, fwhm, counts=1.):
+    """
+    Create an image of a PSF produced by atmospheric turbulence.  
+    
+    The image is created in k space using ogrid_turb_kimage and then Fourier
+    transformed.  The form in k space is exp(-0.5(k/k0)^(5/3))
+
+    parameters
+    ----------
+    dims: [nrows,ncols]
+        The dimensions of the result.  Must be square and even.
+    fwhm:
+        The fwhm for the result in real space.  Note
+            k0 = 2.92/fwhm
+    counts: optional
+        Counts for the image, default 1
+    """
+    if dims[0] != dims[1]:
+        raise ValueError("only square turbulence psf allowed")
+    if (dims[0] % 2) != 0:
+        raise ValueError("only even dimensions for turbulence psf")
+
+    # Always use 2**n-sized FFT
+    kdims = 2**ceil(log2(dims))
+    # on a pixel
+    kcen = kdims/2.
+
+    k0 = 2.92/fwhm
+    # now account for scaling in fft
+    k0 *= kdims[0]/(2*pi)
+
+    otfk = ogrid_turb_kimage(kdims, kcen, k0)
+
+    im = fftn(otfk)[0:dims[0], 0:dims[1]]
+    im = sqrt(im.real**2 + im.imag**2)
+    im = fftshift(im)
+
+    im *= counts/im.sum()
+    return im
+
+def ogrid_turb_kimage(dims, cen, k0):
+    """
+    Return a circular k-space turbulence limited PSF model.
+
+    This is exp(-(k/k0)^5/3) = exp(-(k^2/k0^2)^(5./6)
+
+    k0 = 2.92/fwhm
+
+    parameters
+    ----------
+    dims: [nrows_k,ncols_k]
+        The dimensions of the image. Should be square the side a power of 2 if
+        you are going to use it in an fft.
+    cen:
+        The center in k space.
+    k0: 
+        k0 = 2.92/fwhm
+    """
+
+    row,col=ogrid[0:dims[0], 0:dims[1]]
+
+    rm = array(row - cen[0], dtype='f8')
+    cm = array(col - cen[1], dtype='f8')
+
+    rr2 = rm**2 + cm**2
+    rr2 /= k0**2
+
+    arg = rr2**(5./6.)
+
+    image = exp(-arg)
+    return image
+
+

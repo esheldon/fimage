@@ -512,7 +512,7 @@ class ConvolvedImageFFT(dict):
         else:
             if (imsize % 2) != 0:
                 imsize+=1
-            cen = array( [(imsize/2.]*2 )
+            cen = array( [imsize/2.]*2 )
         dims = array( [imsize]*2 )
 
         return dims,cen

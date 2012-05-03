@@ -18,10 +18,15 @@ def mom2fwhm(T, pixscale=1.0):
     sigma = mom2sigma(T)
     return pixscale*sigma2fwhm(sigma)
 
+
 def fwhm2mom(fwhm, pixscale=1.0):
     sigma = fwhm2sigma(fwhm)/pixscale
     return sigma2mom(sigma)
 
+
+def cov2sigma(cov):
+    T = cov[0] + cov[2]
+    return mom2sigma(T)
 
 def mom2sigma(T):
     is_scalar = numpy.isscalar(T)

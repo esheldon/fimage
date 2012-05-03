@@ -15,6 +15,7 @@ from . import conversions
 
 from .transform import rebin
 
+import time
 import admom
 
 try:
@@ -156,7 +157,7 @@ class ConvolvedTurbulentPSF(dict):
 
         # for calculations we will demand sigma > minres pixels
         # then sample back
-        self['minres'] = keys.get('minres',12)
+        self['minres'] = keys.get('minres',10)
 
         self.set_cov_and_etrue()
         self.set_dims()
@@ -399,7 +400,7 @@ class ConvolvedImageFFT(dict):
 
     The relevant parameter for expansion should be the ratio of the "sigma" of
     the smallest object to the pixel size.  For the convolutions we always want
-    to be at sigma >> 1, say 12.  The images are verified to have moments and
+    to be at sigma >> 1, say 10.  The images are verified to have moments and
     ellip within 0.001 of the true.
 
     Note the center is always placed exactly on a pixel and the expansion factors
@@ -423,7 +424,7 @@ class ConvolvedImageFFT(dict):
 
         # for calculations we will demand sigma > minres pixels
         # then sample back
-        self['minres'] = keys.get('minres',12)
+        self['minres'] = keys.get('minres',10)
 
         if self['verbose']:
             wlog("  -> ConvolvedImage image nsub:",self['image_nsub'])
@@ -458,8 +459,6 @@ class ConvolvedImageFFT(dict):
         elif psfmodel == 'dgauss':
             self.psfpars['cov1'] = array(self.psfpars['cov1'],dtype='f8')
             self.psfpars['cov2'] = array(self.psfpars['cov2'],dtype='f8')
-        elif psfmodel == 'turb':
-            raise ValueError("implement turbulent psf")
         else:
             raise ValueError("unknown model type: '%s'" % psfmodel)
 
@@ -470,8 +469,6 @@ class ConvolvedImageFFT(dict):
         elif psfmodel == 'dgauss':
             psf = self.get_dgauss_psf()
             self.psf = psf
-        elif psfmodel == 'turb':
-            raise ValueError("implement turbulent psf")
         else:
             raise ValueError("unknown model type: '%s'" % psfmodel)
 
@@ -743,8 +740,6 @@ class ConvolvedImageFFT(dict):
                 b=self.psfpars['cenrat']
                 eimage = (eimage1 + b*eimage2)/(1+b)
 
-            elif psfmodel == 'turb':
-                raise ValueError("implement turbulent psf")
             else:
                 raise ValueError("unknown model type: '%s'" % psfmodel)
 
@@ -832,23 +827,21 @@ class ConvolvedImageFFT(dict):
 
             sigma_psf_min = min(sigma_psf_min1,sigma_psf_min2)
             sigma_psf_max = max(sigma_psf_max1,sigma_psf_max2)
-        elif pp['model'] == 'turb':
-            # even dims for turb because of working in k space!
-            # see ~/tmp/test-conv-gauss.py
-            odd=False
-            raise ValueError("Implement turbulent psf")
         else:
             raise ValueError("only support gauss/dgauss psf")
 
-        # for dims we use largest possible
-        sigfac=4.5
+        # padding to large radius
+        # number of sigma
+        nsig=4.5
+        #if p['model'] == 'exp' and pp['model'] == 'gauss':
         if p['model'] == 'exp':
-            sigfac=7.0
+            nsig=7.0
 
         Texpect = 2*(sigma_max**2 + sigma_psf_max**2)
-        dims,cen = self._get_dimcen(Texpect, sigfac=sigfac,odd=odd)
+        dims,cen = self._get_dimcen(Texpect, nsig=nsig,odd=odd)
 
-        # now see if we need to expand, use the smallest dimension
+        # now see if we need to expand in order to sample the sharp
+        # inner region, use the smallest dimension
         sigma_min = min(sigma_min, sigma_psf_min)
 
         if sigma_min > self['minres']:
@@ -874,9 +867,9 @@ class ConvolvedImageFFT(dict):
             wlog("  -> minres:    ",self['minres'])
             wlog("  -> expand_fac:",self['expand_fac'])
 
-    def _get_dimcen(self, T, sigfac=4.5, odd=True):
+    def _get_dimcen(self, T, nsig=4.5, odd=True):
         sigma = sqrt(T/2)
-        imsize = int( numpy.ceil(2*sigfac*sigma) )
+        imsize = int( numpy.ceil(2*nsig*sigma) )
 
         if odd:
             if (imsize % 2) == 0:
@@ -1034,9 +1027,9 @@ class ConvolvedImage(dict):
 
         if objmodel == 'gauss':
             # could probably be 3.5
-            sigfac = 4.5
+            nsig = 4.5
         elif objmodel == 'exp':
-            sigfac = 7.0
+            nsig = 7.0
         else:
             raise ValueError("Unsupported obj model: '%s'" % objmodel)
 
@@ -1048,7 +1041,7 @@ class ConvolvedImage(dict):
         Icc_expect = Icc + psfpars['cov_meas'][2]
 
         Texpect = 2*max(Irr_expect,Icc_expect)
-        dims, cen = self.getdimcen(Texpect, sigfac=sigfac)
+        dims, cen = self.getdimcen(Texpect, nsig=nsig)
 
         if dims[0] < psfpars['dims'][0] and old == False:
             dims = psfpars['dims']
@@ -1315,9 +1308,9 @@ class ConvolvedImage(dict):
     def mom2sigma(self, T):
         return sqrt(T/2)
 
-    def getdimcen(self, T, sigfac=4.5):
+    def getdimcen(self, T, nsig=4.5):
         sigma = sqrt(T/2)
-        imsize = int( numpy.ceil(2*sigfac*sigma) )
+        imsize = int( numpy.ceil(2*nsig*sigma) )
 
         # MUST BE ODD!
         if (imsize % 2) == 0:

@@ -1,7 +1,7 @@
 from __future__ import print_function
 from pprint import pprint
 import numpy
-from numpy import sqrt, exp, array, ceil, log2, pi, ogrid
+from numpy import sqrt, exp, array, ceil, log2, pi, ogrid, zeros
 from numpy.fft import fftshift
 
 import images
@@ -151,503 +151,6 @@ def convolve_turb(image, fwhm, get_psf=False):
     else:
         return cim
 
-class ConvolvedTurbulentPSFOld(dict):
-    def __init__(self, objpars, psfpars, **keys):
-
-        self.objpars=objpars
-        self.psfpars=psfpars
-
-        if self.objpars['model'] not in ['gauss','exp']:
-            raise ValueError("only support gauss/exp objects")
-
-        self['image_nsub'] = keys.get('image_nsub', 16)
-
-        # for calculations we will demand sigma > minres pixels
-        # then sample back
-        self['minres'] = keys.get('minres',6)
-
-        self.set_cov_and_etrue()
-        self.set_dims()
-        self.make_image0()
-        self.make_convolved_image()
-
-    def set_cov_and_etrue(self):
-        self.objpars['cov'] = array(self.objpars['cov'],dtype='f8')
-
-        cov = self.objpars['cov']
-        T=(cov[2]+cov[0])
-        self['covtrue'] = self.objpars['cov']
-        self['e1true'] = (cov[2]-cov[0])/T
-        self['e2true'] = 2*cov[1]/T
-        self['etrue'] = sqrt( self['e1true']**2 + self['e2true']**2 )
-
-    def set_dims(self):
-        """
-
-        Need huge space around the psf because of the wings
-
-        """
-        psffac=10.0
-        if self.objpars['model'] == 'exp':
-            objfac=EXP_PADDING
-        else:
-            objfac=GAUSS_PADDING
-        imcov=self.objpars['cov']
-        fwhm = self.psfpars['psf_fwhm']
-        imsize = sqrt( (psffac*fwhm)**2 + objfac**2*(imcov[0] + imcov[2]))
-        dims = array([imsize]*2,dtype='i8')
-
-        if (dims[0] % 2) != 0:
-            dims += 1
-        self['dims'] = dims
-        self['cen'] = dims/2
-
-        sigma_obj = sqrt((imcov[0]+imcov[2])/2)
-
-        # the idea of "sigma" has no meaning for this type of psf
-        hwhm_psf = fwhm/2
-        sigma_min = min(hwhm_psf,sigma_obj)
-
-        # do we need to expand before convolving?
-        if sigma_min > self['minres']:
-            fac=1
-        else:
-            # find the expansion that will get sigma > minres
-            fac = int(self['minres']/sigma_min)
-
-        self['expand_fac'] = fac
-        if fac > 1:
-            # modify the dims to be odd, so the rebin will
-            # give the right center
-            # this will force the psf to be off center, but 
-            # not much we can do!
-            if (self['dims'][0] % 2) == 0:
-                self['dims'] += 1
-                self['cen'] = (self['dims']-1.)/2.
-            self['edims'] = fac*self['dims']
-            self['ecen'] = (self['edims']-1)/2
-            self.objpars['ecov'] = self.objpars['cov']*fac**2
-        else:
-            self['edims'] = self['dims']
-            self['ecen'] = self['cen']
-            self.objpars['ecov'] = self.objpars['cov']
-
-    def make_image0(self):
-        """
-        Create the unexpanded image0 and get some statistics
-        """
-
-        self.image0 = self.get_image0()
-        self.add_image0_stats()
-
-    def get_image0(self, verify=False, expand=False):
-        """
-        Create the pre-psf model
-
-        run these first
-            self.set_cov_and_etrue()
-            self.set_dims()
-        """
-
-        pars = self.objpars
-        objmodel = pars['model']
-
-        if expand:
-            cen  = self['ecen']
-            dims = self['edims']
-            cov  = pars['ecov']
-        else:
-            cen  = self['cen']
-            dims = self['dims']
-            cov  = pars['cov']
-
-        image0 = pixmodel.model_image(objmodel,dims,cen,cov,
-                                      nsub=self['image_nsub'])
-
-        if verify:
-            self.verify_image(image0, cov)
-        return image0
-
-    def make_convolved_image(self):
-        """
-        Make an image convolved with the psf.
-
-        If we are expanding, we create an expanded pre-psf image and convolve
-        it.  The convolved image and psf are rebinned back.
-        """
-        fwhm = self.psfpars['psf_fwhm']
-        if self['expand_fac'] > 1:
-            # verify using unweighted doesn't work because of sub-pixel
-            #eimage0 = self.get_image0(expand=True, verify=True)
-            eimage0 = self.get_image0(expand=True)
-            efwhm = fwhm*self['expand_fac']
-            eimage,epsf = convolve_turb(eimage0,efwhm,get_psf=True)
-            image = rebin(eimage, self['expand_fac'])
-            psf   = rebin(epsf, self['expand_fac'])
-        else:
-            image,psf = convolve_turb(self.image0,fwhm,get_psf=True)
-
-        self.image = image
-        self.psf   = psf
-
-        self.add_psf_stats()
-        self.add_image_stats()
-
-    def add_image0_stats(self):
-        mom = stat.fmom(self.image0)
-        cov_meas = mom['cov']
-        cen_meas = mom['cen']
-
-        res = admom.admom(self.image0, cen_meas[0],cen_meas[1], 
-                          guess=(cov_meas[0]+cov_meas[1])/2 )
-        cov_meas_admom = array([res['Irr'],res['Irc'],res['Icc']])
-
-        pars = self.objpars
-
-        mom = stat.fmom(self.image0)
-        cov_uw = mom['cov']
-        cen_uw = mom['cen']
-        res = admom.admom(self.image0, cen_uw[0],cen_uw[1], 
-                          guess=(cov_uw[0]+cov_uw[2])/2)
-        
-        cov_admom = array([res['Irr'],res['Irc'],res['Icc']])
-        cen_admom = array([res['wrow'], res['wcol']])
-
-        pars['cov_uw'] = cov_uw
-        pars['cen_uw'] = cen_uw
-        pars['cov_admom'] = cov_admom
-        pars['cen_admom'] = cen_admom
-        self['cov_image0_uw'] = cov_uw
-        self['cen_image0_uw'] = cen_uw
-        self['cov_image0_admom'] = cov_admom
-        self['cen_image0_admom'] = cen_admom
-
-
-    def add_psf_stats(self):
-        mom = stat.fmom(self.psf)
-        cov_uw = mom['cov']
-        cen_uw = mom['cen']
-
-        res = admom.admom(self.psf,cen_uw[0],cen_uw[1], 
-                          guess=(cov_uw[0]+cov_uw[2])/2)
-
-        
-        cov_admom = array([res['Irr'],res['Irc'],res['Icc']])
-        cen_admom = array([res['wrow'], res['wcol']])
-
-        self.psfpars['cov_uw'] = cov_uw
-        self.psfpars['cen_uw'] = cen_uw
-        self.psfpars['cov_admom'] = cov_admom
-        self.psfpars['cen_admom'] = cen_admom
-
-        self['cov_psf_uw'] = cov_uw
-        self['cen_psf_uw'] = cen_uw
-        self['cov_psf_admom'] = cov_admom
-        self['cen_psf_admom'] = cen_admom
-
-    def add_image_stats(self):
-        mom_uw = stat.fmom(self.image)
-        cov_uw = mom_uw['cov']
-        cen_uw = mom_uw['cen']
-
-        res = admom.admom(self.image, cen_uw[0], cen_uw[1], 
-                          guess=(cov_uw[0]+cov_uw[2])/2)
-        cov_admom = array([res['Irr'],res['Irc'],res['Icc']])
-        cen_admom = array([res['wrow'], res['wcol']])
-
-        self['cov_uw'] = cov_uw
-        self['cen_uw'] = cen_uw
-        self['cov_admom'] = cov_admom
-        self['cen_admom'] = cen_admom
-
-    def verify_image(self, image, cov, eps=2.e-3):
-        '''
-
-        Ensure that the *unweighted* moments are equal to input moments
-
-        This is only useful for expanded images since unweighted moments don't
-        include sub-pixel effects
-
-        '''
-
-        mom = stat.fmom(image)
-        mcov = mom['cov']
-
-        rowrel = abs(mcov[0]/cov[0]-1)
-        colrel = abs(mcov[2]/cov[2]-1)
-
-        pdiff = max(rowrel,colrel)
-        if pdiff > eps:
-            raise ValueError("row pdiff %f not within "
-                             "tolerance %f" % (pdiff,eps))
-
-        T = mcov[2] + mcov[0]
-        e1 = (mcov[2]-mcov[1])/T
-        e2 = 2*mcov[1]/T
-        e = sqrt(e1**2 + e2**2)
-
-        Ttrue = cov[2] + cov[0]
-        e1true = (cov[2]-cov[1])/T
-        e2true = 2*cov[1]/T
-        etrue = sqrt(e1true**2 + e2true**2)
-
-        erel = abs(e/etrue-1)
-        if erel > eps:
-            raise ValueError("moments pdiff %f not within "
-                             "tolerance %f" % (erel,eps))
-        
-
-
-class ConvolvedTurbulentPSF(dict):
-    def __init__(self, objpars, psfpars, **keys):
-        self.objpars=objpars
-        self.psfpars=psfpars
-
-        if self.objpars['model'] not in ['gauss','exp']:
-            raise ValueError("only support gauss/exp objects")
-
-        # we want to try to let the expansioin factor do the trick
-        self['image_nsub'] = keys.get('image_nsub', 1)
-        # This is the *minimal* expansion factor
-        self['min_expand_fac'] = keys.get('min_expand_fac', 16)
-
-        # for calculations we will demand sigma > minres pixels
-        # then sample back
-        self['minres'] = keys.get('minres',12)
-
-        self.set_cov_and_etrue()
-
-        self.set_dims()
-
-        self.make_convolved_image()
-
-        self.add_image0_stats()
-        self.add_psf_stats()
-        self.add_image_stats()
-
-    def set_cov_and_etrue(self):
-        self.objpars['cov'] = array(self.objpars['cov'],dtype='f8')
-
-        cov = self.objpars['cov']
-        T=(cov[2]+cov[0])
-        self['covtrue'] = self.objpars['cov']
-        self['e1true'] = (cov[2]-cov[0])/T
-        self['e2true'] = 2*cov[1]/T
-        self['etrue'] = sqrt( self['e1true']**2 + self['e2true']**2 )
-
-    def set_dims(self):
-        """
-        Need huge space around the psf because of the wings
-        """
-        psffac=10.0
-        if self.objpars['model'] == 'exp':
-            objfac=7.0
-        else:
-            objfac=4.5
-        imcov=self.objpars['cov']
-        fwhm = self.psfpars['psf_fwhm']
-        imsize = sqrt( (psffac*fwhm)**2 + objfac**2*(imcov[0] + imcov[2]))
-        dims = array([imsize]*2,dtype='i8')
-
-        if (dims[0] % 2) != 0:
-            dims += 1
-        self['dims'] = dims
-        self['cen'] = dims/2
-
-        sigma_obj = sqrt((imcov[0]+imcov[2])/2)
-
-        # the idea of "sigma" has no meaning for this type of psf
-        # be conservative and make it seem small, which will result
-        # in extra expansion
-        hwhm_psf = fwhm/4
-        sigma_min = min(hwhm_psf,sigma_obj)
-
-        # do we need to expand before convolving?
-        self['expand_fac'] = self['min_expand_fac']
-        if sigma_min < self['minres']:
-            # find the expansion that will get sigma > minres
-            fac = int(self['minres']/sigma_min)
-
-            if fac > self['expand_fac']:
-                self['expand_fac'] = fac
-
-        fac = self['expand_fac']
-        #print("sigma_obj:",sigma_obj,"sigma_min:",sigma_min,"fac:",fac)
-        if fac > 1:
-            # modify the dims to be odd, so the rebin will
-            # give the right center
-            # this will force the psf to be off center, but 
-            # not much we can do!
-            if (self['dims'][0] % 2) == 0:
-                self['dims'] += 1
-                self['cen'] = (self['dims']-1.)/2.
-            self['edims'] = fac*self['dims']
-            self['ecen'] = (self['edims']-1)/2
-            self.objpars['ecov'] = self.objpars['cov']*fac**2
-        else:
-            self['edims'] = self['dims']
-            self['ecen'] = self['cen']
-            self.objpars['ecov'] = self.objpars['cov']
-
-    def get_image0(self, verify=False, expand=False):
-        """
-        Create the pre-psf model
-
-        run these first
-            self.set_cov_and_etrue()
-            self.set_dims()
-        """
-
-        pars = self.objpars
-        objmodel = pars['model']
-
-        if expand:
-            cen  = self['ecen']
-            dims = self['edims']
-            cov  = pars['ecov']
-        else:
-            cen  = self['cen']
-            dims = self['dims']
-            cov  = pars['cov']
-
-        image0 = pixmodel.model_image(objmodel,dims,cen,cov,
-                                      nsub=self['image_nsub'])
-
-        if verify:
-            self.verify_image(image0, cov)
-        return image0
-
-    def make_convolved_image(self):
-        """
-        Make an image convolved with the psf.
-
-        If we are expanding, we create an expanded pre-psf image and convolve
-        it.  The convolved image and psf are rebinned back.
-        """
-        fwhm = self.psfpars['psf_fwhm']
-        #pprint(self)
-        #stop
-        if self['expand_fac'] > 1:
-            #eimage0 = self.get_image0(expand=True, verify=True)
-            eimage0 = self.get_image0(expand=True)
-            efwhm = fwhm*self['expand_fac']
-            eimage,epsf = convolve_turb(eimage0,efwhm,get_psf=True)
-
-            image0 = rebin(eimage0, self['expand_fac'])
-            image = rebin(eimage, self['expand_fac'])
-            psf   = rebin(epsf, self['expand_fac'])
-        else:
-            image0 = self.get_image0()
-            image,psf = convolve_turb(self.image0,fwhm,get_psf=True)
-
-        self.image0 = image0
-        self.image = image
-        self.psf   = psf
-
-
-    def add_image0_stats(self):
-        mom = stat.fmom(self.image0)
-        cov_meas = mom['cov']
-        cen_meas = mom['cen']
-
-        res = admom.admom(self.image0, cen_meas[0],cen_meas[1], 
-                          guess=(cov_meas[0]+cov_meas[1])/2 )
-        cov_meas_admom = array([res['Irr'],res['Irc'],res['Icc']])
-
-        pars = self.objpars
-
-        mom = stat.fmom(self.image0)
-        cov_uw = mom['cov']
-        cen_uw = mom['cen']
-        res = admom.admom(self.image0, cen_uw[0],cen_uw[1], 
-                          guess=(cov_uw[0]+cov_uw[2])/2)
-        
-        cov_admom = array([res['Irr'],res['Irc'],res['Icc']])
-        cen_admom = array([res['wrow'], res['wcol']])
-
-        pars['cov_uw'] = cov_uw
-        pars['cen_uw'] = cen_uw
-        pars['cov_admom'] = cov_admom
-        pars['cen_admom'] = cen_admom
-        self['cov_image0_uw'] = cov_uw
-        self['cen_image0_uw'] = cen_uw
-        self['cov_image0_admom'] = cov_admom
-        self['cen_image0_admom'] = cen_admom
-
-
-    def add_psf_stats(self):
-        mom = stat.fmom(self.psf)
-        cov_uw = mom['cov']
-        cen_uw = mom['cen']
-
-        res = admom.admom(self.psf,cen_uw[0],cen_uw[1], 
-                          guess=(cov_uw[0]+cov_uw[2])/2)
-
-        
-        cov_admom = array([res['Irr'],res['Irc'],res['Icc']])
-        cen_admom = array([res['wrow'], res['wcol']])
-
-        self.psfpars['cov_uw'] = cov_uw
-        self.psfpars['cen_uw'] = cen_uw
-        self.psfpars['cov_admom'] = cov_admom
-        self.psfpars['cen_admom'] = cen_admom
-
-        self['cov_psf_uw'] = cov_uw
-        self['cen_psf_uw'] = cen_uw
-        self['cov_psf_admom'] = cov_admom
-        self['cen_psf_admom'] = cen_admom
-
-    def add_image_stats(self):
-        mom_uw = stat.fmom(self.image)
-        cov_uw = mom_uw['cov']
-        cen_uw = mom_uw['cen']
-
-        res = admom.admom(self.image, cen_uw[0], cen_uw[1], 
-                          guess=(cov_uw[0]+cov_uw[2])/2)
-        cov_admom = array([res['Irr'],res['Irc'],res['Icc']])
-        cen_admom = array([res['wrow'], res['wcol']])
-
-        self['cov_uw'] = cov_uw
-        self['cen_uw'] = cen_uw
-        self['cov_admom'] = cov_admom
-        self['cen_admom'] = cen_admom
-
-    def verify_image(self, image, cov, eps=2.e-3):
-        '''
-
-        Ensure that the *unweighted* moments are equal to input moments
-
-        This is only useful for expanded images since unweighted moments don't
-        include sub-pixel effects
-
-        '''
-
-        mom = stat.fmom(image)
-        mcov = mom['cov']
-
-        rowrel = abs(mcov[0]/cov[0]-1)
-        colrel = abs(mcov[2]/cov[2]-1)
-
-        pdiff = max(rowrel,colrel)
-        if pdiff > eps:
-            raise ValueError("row pdiff %f not within "
-                             "tolerance %f" % (pdiff,eps))
-
-        T = mcov[2] + mcov[0]
-        e1 = (mcov[2]-mcov[1])/T
-        e2 = 2*mcov[1]/T
-        e = sqrt(e1**2 + e2**2)
-
-        Ttrue = cov[2] + cov[0]
-        e1true = (cov[2]-cov[1])/T
-        e2true = 2*cov[1]/T
-        etrue = sqrt(e1true**2 + e2true**2)
-
-        erel = abs(e/etrue-1)
-        if erel > eps:
-            raise ValueError("moments pdiff %f not within "
-                             "tolerance %f" % (erel,eps))
-        
 
 class ConvolverBase(dict):
     def __init__(self, objpars, psfpars, **keys):
@@ -662,6 +165,11 @@ class ConvolverBase(dict):
         if self.psfpars['model'] not in ['gauss','dgauss','turb']:
             raise ValueError("only support gauss/dgauss/turb psf")
 
+        if 'cov' in self.objpars:
+            self.objpars['cov'] = array(self.objpars['cov'],dtype='f8')
+        if 'cov' in self.psfpars:
+            self.psfpars['cov'] = array(self.psfpars['cov'],dtype='f8')
+ 
         # we want to try to let the expansion factor do the trick
         self['image_nsub'] = keys.get('image_nsub', 1)
 
@@ -685,8 +193,6 @@ class ConvolverBase(dict):
         raise RuntimeError("over-ride this")
 
     def set_cov_and_etrue(self):
-        self.objpars['cov'] = array(self.objpars['cov'],dtype='f8')
-
         cov = self.objpars['cov']
         T=(cov[2]+cov[0])
         self['covtrue'] = self.objpars['cov']
@@ -844,8 +350,7 @@ class ConvolverGaussFFT(ConvolverBase):
         self.set_cov_and_etrue()
 
         # these implemented in this class
-        self.set_dims()
-        self.set_expansion()
+        self.set_dims_and_expansion()
         self.make_images()
 
         # these inherited
@@ -853,21 +358,23 @@ class ConvolverGaussFFT(ConvolverBase):
         self.add_psf_stats()
         self.add_image_stats()
 
-    def set_dims(self):
+    def set_dims_and_expansion(self):
         """
         All images are created in reall space, so want odd
         """
-        psffac = self['psffac']
+
+        psffac = GAUSS_PADDING
         objfac = self['objfac']
 
-        obj_cov = array(self.objpars['cov'])
+        obj_cov = self.objpars['cov']
         if self.psfpars['model'] == 'gauss':
-            psf_cov=array(self.psfpars['cov'])
+            psf_cov=self.psfpars['cov']
         elif self.psfpars['model'] == 'dgauss':
-            b=self.psfpars['psf_cenrat']
-            psf_cov1=array(self.psfpars['cov1'])
-            psf_cov2=array(self.psfpars['cov2'])
-            psf_cov = (psf_cov1 + b*psf_cov2)/(1.+b)
+            psf_cov1 = self.psfpars['cov1']
+            psf_cov2 = self.psfpars['cov2']
+            psf_cov  = zeros(3)
+            psf_cov[0] = max(psf_cov1[0], psf_cov2[0])
+            psf_cov[2] = max(psf_cov1[2], psf_cov2[2])
         else:
             raise ValueError("model should be gauss or dgauss")
 
@@ -883,14 +390,15 @@ class ConvolverGaussFFT(ConvolverBase):
 
         self['cen'] = (dims-1.)/2.
 
+
+        #
+        # do we need to expand before convolving?
+        #
+
         # the idea of "sigma" has no meaning for this type of psf
         # but this constant is reasonably close for our apertures
         sigma_min = min(sigma_psf,sigma_obj)
 
-    def set_expansion(self):
-        #
-        # do we need to expand before convolving?
-        #
         fac = 1
         if sigma_min < self['minres']:
             # find the odd integer expansion that will get sigma > minres
@@ -935,10 +443,10 @@ class ConvolverGaussFFT(ConvolverBase):
 
         verify=False
         image0 = self.get_image0(expand=expand,verify=verify)
-        if self.psfpars['objmodel'] == 'dgauss':
+        if self.psfpars['model'] == 'dgauss':
             b=self.psfpars['cenrat']
-            psf_cov1=array(self.psfpars['cov1'])*fac**2
-            psf_cov2=array(self.psfpars['cov2'])*fac**2
+            psf_cov1=self.psfpars['cov1']*fac**2
+            psf_cov2=self.psfpars['cov2']*fac**2
             psf1 = pixmodel.model_image('gauss', dims, cen,
                                          psf_cov1,nsub=nsub)
             psf2 = pixmodel.model_image('gauss', dims, cen,
@@ -949,7 +457,7 @@ class ConvolverGaussFFT(ConvolverBase):
             image = (eim1 + b*eim2)/(1.+b)
             psf = (psf1 + b*psf2)/(1.+b)
         else:
-            psf_cov=array(self.psfpars['cov'])*fac**2
+            psf_cov=self.psfpars['cov']*fac**2
             psf = pixmodel.model_image('gauss', dims, cen,
                                         psf_cov,nsub=nsub)
             image = scipy.signal.fftconvolve(image0, psf, mode='same')
@@ -975,7 +483,7 @@ class ConvolverAllGauss(ConvolverBase):
         all gaussians all the time
         """
         super(ConvolverAllGauss,self).__init__(objpars,psfpars,**keys)
-            
+
         # these inherited
         self.set_cov_and_etrue()
 
@@ -993,23 +501,25 @@ class ConvolverAllGauss(ConvolverBase):
         Simple for analytic convolutions
         """
 
-        # same factor for all gaussians
-        fac = self['objfac']
+        
+        fac = GAUSS_PADDING
 
-        obj_cov = array(self.objpars['cov'])
+        obj_cov = self.objpars['cov']
+
         if self.psfpars['model'] == 'gauss':
-            psf_cov=array(self.psfpars['cov'])
+            psf_cov=self.psfpars['cov']
         elif self.psfpars['model'] == 'dgauss':
-            b=self.psfpars['psf_cenrat']
-            psf_cov1=array(self.psfpars['cov1'])
-            psf_cov2=array(self.psfpars['cov2'])
-            psf_cov = (psf_cov1 + b*psf_cov2)/(1.+b)
+            psf_cov1 = self.psfpars['cov1']
+            psf_cov2 = self.psfpars['cov2']
+            psf_cov  = zeros(3)
+            psf_cov[0] = max(psf_cov1[0], psf_cov2[0])
+            psf_cov[2] = max(psf_cov1[2], psf_cov2[2])
         else:
             raise ValueError("model should be gauss or dgauss")
 
         cov = obj_cov + psf_cov
-        
-        imsize = fac*2*sqrt( (cov[0]+cov[2])/2. )
+        sigma = cov2sigma(cov) 
+        imsize = fac*2*sigma
         dims = array([imsize]*2,dtype='i8')
         if (dims[0] % 2) == 0:
             dims += 1
@@ -1026,19 +536,19 @@ class ConvolverAllGauss(ConvolverBase):
         """
         nsub=16
 
-        objcov = array(self.objpars['cov'])
+        objcov = self.objpars['cov']
         self.image0 = pixmodel.model_image('gauss',
                                            self['dims'],
                                            self['cen'],
                                            objcov,nsub=nsub)
 
         if self.psfpars['model'] == 'dgauss':
-            psf_cov1 = array(self.psfpars['cov1'])
-            psf_cov2 = array(self.psfpars['cov2'])
+            psf_cov1 = self.psfpars['cov1']
+            psf_cov2 = self.psfpars['cov2']
 
             cov1 = objcov + psf_cov1
             cov2 = objcov + psf_cov2
-            b = self.objpars['cenrat']
+            b = self.psfpars['cenrat']
 
             im1 = pixmodel.model_image('gauss', self['dims'], self['cen'],
                                        cov1,nsub=nsub)
@@ -1053,7 +563,7 @@ class ConvolverAllGauss(ConvolverBase):
 
             self.psf = (psf1 + b*psf2)/(1+b)
         else:
-            psf_cov = array(self.psfpars['cov'])
+            psf_cov = self.psfpars['cov']
             cov = objcov + psf_cov
             self.image = \
                 pixmodel.model_image('gauss', self['dims'], self['cen'],
@@ -1073,6 +583,12 @@ class ConvolverTurbulence(ConvolverBase):
         super(ConvolverTurbulence,self).__init__(objpars,psfpars,**keys)
 
         self['psffac'] = TURB_PADDING
+        if self.objpars['model'] == 'exp':
+            # The broad exponential must feel the outer psf
+            self['psffac'] *= 1.5
+
+        # 6 seems good enough.  Can we do this in ConvolverGaussFFT?
+        self['minres'] = 6
 
 
         # inherited
@@ -1092,7 +608,7 @@ class ConvolverTurbulence(ConvolverBase):
         """
         Need huge space around the psf because of the wings
         """
-        psffac=5.0
+        psffac=self['psffac']
         objfac=self['objfac']
 
         imcov=self.objpars['cov']
@@ -1118,7 +634,6 @@ class ConvolverTurbulence(ConvolverBase):
 
         # do we need to expand before convolving?
         fac=1
-        self['minres'] = 6
         if sigma_min < self['minres']:
             # find the expansion that will get sigma > minres
             fac = int(self['minres']/sigma_min)
@@ -1173,7 +688,8 @@ class ConvolverTurbulence(ConvolverBase):
 
 
 
-
+# deprecated, but it is still used in the regauss
+# sims, so leave it for now
 class ConvolvedImageFFT(dict):
     '''
 
@@ -1670,7 +1186,7 @@ class ConvolvedImageFFT(dict):
 
 
 
-
+# deprecated
 class ConvolvedImage(dict):
     """
     Simulate an object convolved with a psf.  

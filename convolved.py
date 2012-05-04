@@ -177,14 +177,22 @@ class ConvolverBase(dict):
         # then sample back
         self['minres'] = keys.get('minres',12)
 
-        # Hint for how large to make the base image
-        if self.objpars['model'] == 'exp':
-            self['objfac']=EXP_PADDING
-        else:
-            self['objfac']=GAUSS_PADDING
+        self.set_default_padding(**keys)
         self.image0=None
         self.image=None
         self.psf=None
+
+    def set_default_padding(self, **keys):
+        if 'psffac' in keys:
+            self['psffac'] = keys['psffac']
+        if 'objfac' in keys:
+            self['objfac'] = keys['objfac']
+        else:
+            # Hint for how large to make the base image
+            if self.objpars['model'] == 'exp':
+                self['objfac']=EXP_PADDING
+            else:
+                self['objfac']=GAUSS_PADDING
 
     def make_images(self):
         """
@@ -344,7 +352,8 @@ class ConvolverGaussFFT(ConvolverBase):
         """
         super(ConvolverGaussFFT,self).__init__(objpars,psfpars,**keys)
             
-        self['psffac'] = GAUSS_PADDING
+        if 'psffac' not in self:
+            self['psffac'] = GAUSS_PADDING
 
         # inherited
         self.set_cov_and_etrue()
@@ -363,7 +372,7 @@ class ConvolverGaussFFT(ConvolverBase):
         All images are created in reall space, so want odd
         """
 
-        psffac = GAUSS_PADDING
+        psffac = self['psffac']
         objfac = self['objfac']
 
         obj_cov = self.objpars['cov']
@@ -483,7 +492,9 @@ class ConvolverAllGauss(ConvolverBase):
         all gaussians all the time
         """
         super(ConvolverAllGauss,self).__init__(objpars,psfpars,**keys)
-
+ 
+        if 'psffac' not in self:
+            self['psffac'] = GAUSS_PADDING
         # these inherited
         self.set_cov_and_etrue()
 
@@ -502,7 +513,7 @@ class ConvolverAllGauss(ConvolverBase):
         """
 
         
-        fac = GAUSS_PADDING
+        fac = self['psffac']
 
         obj_cov = self.objpars['cov']
 
@@ -582,7 +593,9 @@ class ConvolverTurbulence(ConvolverBase):
         """
         super(ConvolverTurbulence,self).__init__(objpars,psfpars,**keys)
 
-        self['psffac'] = TURB_PADDING
+        if 'psffac' not in self:
+            self['psffac'] = TURB_PADDING
+
         if self.objpars['model'] == 'exp':
             # The broad exponential must feel the outer psf
             self['psffac'] *= 1.5

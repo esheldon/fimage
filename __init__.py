@@ -20,6 +20,7 @@ from .conversions import fwhm2sigma
 from .conversions import sigma2fwhm
 from .conversions import mom2fwhm
 from .conversions import fwhm2mom
+from .conversions import cov2sigma
 from .conversions import mom2sigma
 from .conversions import sigma2mom
 from .conversions import mom2ellip

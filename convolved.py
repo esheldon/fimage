@@ -125,8 +125,14 @@ def convolve_turb(image, fwhm, get_psf=False):
     if dims[0] != dims[1]:
         raise ValueError("only square images for now")
 
+    kdims=dims.copy()
+    # add padding for PSF in real space
+    # sigma is approximate
+    kdims += 4*fwhm/TURB_SIGMA_FAC
+
     # Always use 2**n-sized FFT
-    kdims = 2**ceil(log2(dims))
+    kdims = 2**ceil(log2(kdims))
+    print("kdims:",kdims)
     kcen = kdims/2.
 
     imfft = fftn(image,kdims)

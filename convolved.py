@@ -132,7 +132,6 @@ def convolve_turb(image, fwhm, get_psf=False):
 
     # Always use 2**n-sized FFT
     kdims = 2**ceil(log2(kdims))
-    print("kdims:",kdims)
     kcen = kdims/2.
 
     imfft = fftn(image,kdims)

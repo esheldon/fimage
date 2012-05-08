@@ -29,7 +29,7 @@ except:
 
 
 # sigma ~ fwhm/TURB_SIGMA_FAC
-TURB_SIGMA_FAC=1.6
+TURB_SIGMA_FAC=1.68
 TURB_PADDING=10.0
 
 GAUSS_PADDING=5.0
@@ -68,9 +68,12 @@ def convolve_gauss(image, sigma, get_psf=False):
     if dims[0] != dims[1]:
         raise ValueError("only square images for now")
 
+    # padding for PSF
+    kdims = dims.copy()
+    kdims += 2.*4.*sigma
+
     # Always use 2**n-sized FFT
-    size=dims
-    kdims = 2**ceil(log2(size))
+    kdims = 2**ceil(log2(kdims))
     kcen = kdims/2.
 
     imfft = fftn(image,kdims)
@@ -125,10 +128,10 @@ def convolve_turb(image, fwhm, get_psf=False):
     if dims[0] != dims[1]:
         raise ValueError("only square images for now")
 
-    kdims=dims.copy()
     # add padding for PSF in real space
     # sigma is approximate
-    kdims += 4*fwhm/TURB_SIGMA_FAC
+    kdims=dims.copy()
+    kdims += 2*4*fwhm/TURB_SIGMA_FAC
 
     # Always use 2**n-sized FFT
     kdims = 2**ceil(log2(kdims))

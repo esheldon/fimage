@@ -603,7 +603,7 @@ class ConvolverTurbulence(ConvolverBase):
 
         if 'psffac' not in self:
             self['psffac'] = TURB_PADDING
-
+        #self['psffac'] = 3.
         if self.objpars['model'] == 'exp':
             # The broad exponential must feel the outer psf
             self['psffac'] *= 1.5

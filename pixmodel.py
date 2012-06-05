@@ -15,7 +15,7 @@ import _fimage
 _tmap={'gauss':1,'exp':2,'dev':3}
 _emap={0:'ok',2**0:'invalid model',2**1:'determinant <= 0',2**2:'invalid nsub'}
 
-def model_image(model, dims, cen, cov, nsub=4, counts=1.0, order='f', dtype='f8'):
+def model_image(model, dims, cen, cov, nsub=4, counts=1.0, order='c', dtype='f8'):
     """
     Create in image with the specified model using sub-pixel integration
 
@@ -45,8 +45,7 @@ def model_image(model, dims, cen, cov, nsub=4, counts=1.0, order='f', dtype='f8'
 
     order: string
         Send either 'c' for C order or 'f' for fortran order.  By
-        default the result is fortran since the data is created
-        in fortran.
+        default the result is c order, the default for numpy.
 
     dtype: string or numpy dtype
         The data type, default 'f8'.  Can be 4-byte float or 8 byte float.
@@ -54,9 +53,7 @@ def model_image(model, dims, cen, cov, nsub=4, counts=1.0, order='f', dtype='f8'
     Returns
     -------
     Image: 2-d array
-        The returned image is a 2-d numpy array of 8 or 4 byte floats.  The
-        image if in fortran-contiguous order by default; use order='c' to get
-        it in c order.
+        The returned image is a 2-d numpy array of 8 or 4 byte floats.
 
     Example
     -------
@@ -84,7 +81,7 @@ def model_image(model, dims, cen, cov, nsub=4, counts=1.0, order='f', dtype='f8'
         exp
             exp( -sqrt(r2*3) )
         dev
-            exp(-7.67*(r**0.25 - 1) )
+            exp(-7.67*(r**0.125 - 1) )
 
 
     Fortran
@@ -120,6 +117,10 @@ def model_image(model, dims, cen, cov, nsub=4, counts=1.0, order='f', dtype='f8'
 
     if len(cov) != 3:
         raise ValueError("covariance must be a sequence of length 3")
+
+    cov=numpy.array(cov)
+    if model.lower() == 'dev':
+        cov /= 10.83
 
     dt = numpy.dtype(dtype)
     if dt.name == 'float32':

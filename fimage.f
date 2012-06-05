@@ -135,7 +135,7 @@ c     & " offset: ",offset
             else if (model .eq. 2) then
               expon=sqrt(r2*3.)
             else if (model .eq. 3) then
-              expon=7.67*(r2**0.25 - 1)
+              expon=7.67*(r2**0.125 - 1)
             endif
 
             image(i,j) = exp(-expon)
@@ -235,6 +235,7 @@ c     & " offset: ",offset
                   expon=sqrt(r2*3.)
                 else if (model .eq. 3) then
                   expon=7.67*(r2**0.125 - 1)
+                  !expon=r2**0.125
                 endif
 
                 sum = sum + exp(-expon)
@@ -255,7 +256,7 @@ c     & " offset: ",offset
             else if (model .eq. 2) then
               expon=sqrt(r2*3.)
             else if (model .eq. 3) then
-              expon=7.67*(r2**0.25 - 1)
+              expon=7.67*(r2**0.125 - 1)
             endif
 
             image(i,j) = exp(-expon)

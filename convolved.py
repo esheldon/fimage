@@ -34,6 +34,7 @@ TURB_PADDING=10.0
 
 GAUSS_PADDING=5.0
 EXP_PADDING=7.0
+DEV_PADDING=15.0
 
 def wlog(*args):
     narg = len(args)
@@ -168,8 +169,8 @@ class ConvolverBase(dict):
         self.objpars=objpars
         self.psfpars=psfpars
 
-        if self.objpars['model'] not in ['gauss','exp']:
-            raise ValueError("only support gauss/exp objects")
+        if self.objpars['model'] not in ['gauss','exp','dev']:
+            raise ValueError("only support gauss/exp/dev objects")
         if self.psfpars['model'] not in ['gauss','dgauss','turb']:
             raise ValueError("only support gauss/dgauss/turb psf")
 
@@ -179,7 +180,11 @@ class ConvolverBase(dict):
             self.psfpars['cov'] = array(self.psfpars['cov'],dtype='f8')
  
         # we want to try to let the expansion factor do the trick
-        self['image_nsub'] = keys.get('image_nsub', 1)
+        defsub=1
+        #if self.objpars['model'] == 'dev':
+        #    defsub=16
+        self['image_nsub'] = keys.get('image_nsub', defsub)
+        print("image_nsub:",self['image_nsub'])
 
         # for calculations we will demand sigma > minres pixels
         # then sample back
@@ -199,6 +204,8 @@ class ConvolverBase(dict):
             # Hint for how large to make the base image
             if self.objpars['model'] == 'exp':
                 self['objfac']=EXP_PADDING
+            elif self.objpars['model'] == 'dev':
+                self['objfac']=DEV_PADDING
             else:
                 self['objfac']=GAUSS_PADDING
 
@@ -270,11 +277,17 @@ class ConvolverBase(dict):
         pars['cen_uw'] = cen_uw
         pars['cov_admom'] = cov_admom
         pars['cen_admom'] = cen_admom
+
         self['cov_image0_uw'] = cov_uw
         self['cen_image0_uw'] = cen_uw
         self['cov_image0_admom'] = cov_admom
         self['cen_image0_admom'] = cen_admom
 
+        e1_uw = (cov_uw[2]-cov_uw[0])/(cov_uw[2]+cov_uw[0])
+        e2_uw = 2*cov_uw[1]/(cov_uw[2]+cov_uw[0])
+        self['e1_image0_uw'] = e1_uw
+        self['e2_image0_uw'] = e2_uw
+        self['e_image0_uw'] = sqrt(e1_uw**2 + e2_uw**2)
 
     def add_psf_stats(self):
         mom = stat.fmom(self.psf)

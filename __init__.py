@@ -26,6 +26,7 @@ from .conversions import mom2sigma
 from .conversions import sigma2mom
 from .conversions import mom2ellip
 from .conversions import ellip2mom
+from .conversions import etheta2e1e2
 from .conversions import momdet
 
 from . import analytic

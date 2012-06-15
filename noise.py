@@ -1,3 +1,4 @@
+from sys import stderr
 from numpy import ogrid, array, sqrt, where
 from numpy.random import randn
 
@@ -76,8 +77,8 @@ def add_noise(im, s2n, check=False):
 
     if check:
         out = admom.admom(image, cen[0], cen[1], guess=T/2., sigsky=skysig)
-        wlog("    target S/N:            ",s2n)
-        wlog("    meas S/N after noise:  ",out['s2n'])
+        print >>stderr,"    target S/N:            ",s2n
+        print >>stderr,"    meas S/N after noise:  ",out['s2n']
 
     return image, skysig
 

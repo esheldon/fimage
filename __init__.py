@@ -11,6 +11,7 @@ from .convolved import ConvolvedImage
 from . import statistics
 from .statistics import second_moments
 from .statistics import moments
+from .statistics import fmom
 
 from . import conversions
 
@@ -32,3 +33,6 @@ from . import analytic
 from . import fconv
 
 from . import test_moments
+
+from . import noise
+from .noise import add_noise

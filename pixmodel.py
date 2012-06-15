@@ -118,7 +118,7 @@ def model_image(model, dims, cen, cov, nsub=4, counts=1.0, order='c', dtype='f8'
     if len(cov) != 3:
         raise ValueError("covariance must be a sequence of length 3")
 
-    cov=numpy.array(cov)
+    cov=numpy.array(cov,copy=True)
     if model.lower() == 'dev':
         cov /= 10.83
 

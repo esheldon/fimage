@@ -121,7 +121,7 @@ def convolve_turb(image, fwhm, get_psf=False):
     get_psf:
         If True, return a tuple (im,psf)
 
-    The images dimensions should be square, and even in order for the psf to be
+    The images dimensions should be square, and even so the psf is
     centered.
     """
 
@@ -180,11 +180,10 @@ class ConvolverBase(dict):
             self.psfpars['cov'] = array(self.psfpars['cov'],dtype='f8')
  
         # we want to try to let the expansion factor do the trick
+        # even for dev, we probably don't need a full nsub=16 here
         defsub=1
-        #if self.objpars['model'] == 'dev':
-        #    defsub=16
         self['image_nsub'] = keys.get('image_nsub', defsub)
-        print("image_nsub:",self['image_nsub'])
+        stderr.write("image_nsub: %d " % self['image_nsub'])
 
         # for calculations we will demand sigma > minres pixels
         # then sample back
@@ -471,6 +470,7 @@ class ConvolverGaussFFT(ConvolverBase):
             dims = self['edims']
             cen = self['ecen']
 
+        stderr.write("image_nsub(again): %d expand_fac: %d\n" % (nsub,fac))
         verify=False
         image0 = self.get_image0(expand=expand,verify=verify)
         if self.psfpars['model'] == 'dgauss':
@@ -1139,7 +1139,7 @@ class ConvolvedImageFFT(dict):
 
         Get the dimensions of the image objects.
 
-        Determine by how much we need to expand in order to get accurate
+        Determine by how much we need to expand to get accurate
         convolutions.
 
         '''
@@ -1175,7 +1175,7 @@ class ConvolvedImageFFT(dict):
         Texpect = 2*(sigma_max**2 + sigma_psf_max**2)
         dims,cen = self._get_dimcen(Texpect, nsig=nsig,odd=odd)
 
-        # now see if we need to expand in order to sample the sharp
+        # now see if we need to expand to sample the sharp
         # inner region, use the smallest dimension
         sigma_min = min(sigma_min, sigma_psf_min)
 

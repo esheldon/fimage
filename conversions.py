@@ -65,6 +65,12 @@ def ellip2mom(T, e1=None, e2=None, e=None, theta=None):
 
     return array([Irr, Irc, Icc])
 
+def etheta2e1e2(e, theta):
+    e1 = e*cos(2*theta)
+    e2 = e*sin(2*theta)
+
+    return e1,e2
+
 def momdet(Irr, Irc, Icc):
     return Irr*Icc-Irc**2
 

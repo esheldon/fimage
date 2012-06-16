@@ -51,10 +51,14 @@ def mom2ellip(Irr, Irc, Icc):
 
     return array([e1,e2,T])
 
-def ellip2mom(T, e1=None, e2=None, e=None, theta=None):
+def ellip2mom(T, e1=None, e2=None, e=None, theta=None, units='deg'):
     if e is not None and theta is not None:
-        e1 = e*cos(2*theta*PI/180.0)
-        e2 = e*sin(2*theta*PI/180.0)
+        if units == 'deg':
+            e1 = e*cos(2*theta*PI/180.0)
+            e2 = e*sin(2*theta*PI/180.0)
+        else:
+            e1 = e*cos(2*theta)
+            e2 = e*sin(2*theta)
 
     if e1 is None or e2 is None:
         raise ValueError("send e1/e2 or e/theta")
@@ -65,9 +69,13 @@ def ellip2mom(T, e1=None, e2=None, e=None, theta=None):
 
     return array([Irr, Irc, Icc])
 
-def etheta2e1e2(e, theta):
-    e1 = e*cos(2*theta)
-    e2 = e*sin(2*theta)
+def etheta2e1e2(e, theta, units='deg'):
+    if units == 'deg':
+        e1 = e*cos(2*theta*PI/180.0)
+        e2 = e*sin(2*theta*PI/180.0)
+    else:
+        e1 = e*cos(2*theta)
+        e2 = e*sin(2*theta)
 
     return e1,e2
 

@@ -183,6 +183,7 @@ class ConvolverBase(dict):
         # even for dev, we probably don't need a full nsub=16 here
         defsub=1
         self['image_nsub'] = keys.get('image_nsub', defsub)
+        self['expand_fac_min'] = keys.get('expand_fac_min', 1)
         stderr.write("image_nsub: %d " % self['image_nsub'])
 
         # for calculations we will demand sigma > minres pixels
@@ -407,8 +408,8 @@ class ConvolverGaussFFT(ConvolverBase):
         else:
             raise ValueError("model should be gauss or dgauss")
 
-        sigma_psf = cov2sigma(psf_cov)
-        sigma_obj = cov2sigma(obj_cov)
+        sigma_psf = cov2sigma(psf_cov,use_max=True)
+        sigma_obj = cov2sigma(obj_cov,use_max=True)
 
         imsize = 2*sqrt( psffac**2*sigma_psf**2 + objfac**2*sigma_obj**2)
         dims = array([imsize]*2,dtype='i8')
@@ -432,6 +433,11 @@ class ConvolverGaussFFT(ConvolverBase):
         if sigma_min < self['minres']:
             # find the odd integer expansion that will get sigma > minres
             fac = int(self['minres']/sigma_min)
+
+        fac_min = self['expand_fac_min']
+
+        if fac < fac_min:
+            fac=fac_min
 
         if (fac % 2) == 0:
             fac += 1
@@ -550,7 +556,8 @@ class ConvolverAllGauss(ConvolverBase):
             raise ValueError("model should be gauss or dgauss")
 
         cov = obj_cov + psf_cov
-        sigma = cov2sigma(cov) 
+        sigma = cov2sigma(cov,use_max=True) 
+
         imsize = fac*2*sigma
         dims = array([imsize]*2,dtype='i8')
         if (dims[0] % 2) == 0:
@@ -646,10 +653,10 @@ class ConvolverTurbulence(ConvolverBase):
         objfac=self['objfac']
 
         imcov=self.objpars['cov']
-        obj_sigma = cov2sigma(imcov)
+        sigma_obj = cov2sigma(imcov,use_max=True)
 
         fwhm = self.psfpars['psf_fwhm']
-        imsize = 2*sqrt( (psffac*fwhm)**2 + objfac**2*obj_sigma**2 )
+        imsize = 2*sqrt( (psffac*fwhm)**2 + objfac**2*sigma_obj**2 )
         dims = array([imsize]*2,dtype='i8')
 
         if (dims[0] % 2) != 0:
@@ -657,7 +664,6 @@ class ConvolverTurbulence(ConvolverBase):
         self['dims'] = dims
         self['cen'] = dims/2
 
-        sigma_obj = cov2sigma(imcov)
 
         # the idea of "sigma" has no meaning for this type of psf
         # be conservative and make it seem small, which will result
@@ -671,6 +677,10 @@ class ConvolverTurbulence(ConvolverBase):
         if sigma_min < self['minres']:
             # find the expansion that will get sigma > minres
             fac = int(self['minres']/sigma_min)
+
+        fac_min = self['expand_fac_min']
+        if fac < fac_min:
+            fac=fac_min
 
         #if fac < 16:
         #    fac=16.

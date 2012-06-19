@@ -24,14 +24,17 @@ def fwhm2mom(fwhm, pixscale=1.0):
     return sigma2mom(sigma)
 
 
-def cov2sigma(cov):
-    T = cov[0] + cov[2]
+def cov2sigma(cov, use_max=False):
+    if use_max:
+        T = 2*max(cov[0],cov[2])
+    else:
+        T = cov[0] + cov[2]
     return mom2sigma(T)
 
 def mom2sigma(T):
     is_scalar = numpy.isscalar(T)
     T = array(T, ndmin=1)
-    sigma = numpy.empty(T.size, dtype='f4')
+    #sigma = numpy.empty(T.size, dtype='f4')
 
     sigma = numpy.where(T > 0, sqrt(T/2), -9999.0)
 

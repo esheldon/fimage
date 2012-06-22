@@ -103,3 +103,50 @@ def fmom(image, nsub=1):
     e2 = 2*cov[1]/T
 
     return {'cen':cen, 'cov':cov, 'e1':e1, 'e2':e2}
+
+def interplin(vin, xin, uin):
+    """
+    NAME:
+      interplin()
+      
+    PURPOSE:
+      Perform 1-d linear interpolation.  Values outside the bounds are
+      permitted unlike the scipy.interpolate.interp1d module. They are
+      extrapolated from the line between the 0,1 or n-2,n-1 entries.  This
+      program is not as powerful as interp1d but it does provide this feature
+      which makes it compatible with the IDL interpol() function.
+
+    CALLING SEQUENCE:
+      yint = interplin(y, x, u)
+
+    INPUTS:
+      y, x:  The y and x values of the data.
+      u: The x-values to which will be interpolated.
+
+    REVISION HISTORY:
+      Created: 2006-10-24, Erin Sheldon, NYU
+    """
+    # Make sure inputs are arrays.  Copy only made if they are not.
+    v=numpy.array(vin, ndmin=1, copy=False)
+    x=numpy.array(xin, ndmin=1, copy=False)
+    u=numpy.array(uin, ndmin=1, copy=False)
+
+    # Find closest indices
+    xm = x.searchsorted(u) - 1
+    
+    # searchsorted returns size(array) when the input is larger than xmax
+    # Also, we need the index to be less than the last since we interpolate
+    # *between* points.
+    w, = numpy.where(xm >= (x.size-1))
+    if w.size > 0:
+        xm[w] = x.size-2
+
+    w, = numpy.where(xm < 0)
+    if w.size > 0:
+        xm[w] = 0
+        
+    xmp1 = xm+1
+    return (u-x[xm])*(v[xmp1] - v[xm])/(x[xmp1] - x[xm]) + v[xm]
+
+
+

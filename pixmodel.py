@@ -120,6 +120,9 @@ def model_image(model, dims, cen, cov, nsub=4, counts=1.0, order='c', dtype='f8'
 
     cov=numpy.array(cov,copy=True)
     if model.lower() == 'dev':
+        # rescale in terms of the half light radius, 
+        # which is a factor of sqrt(10.83) smaller than
+        # unweighted sigma**2
         cov /= 10.83
 
     dt = numpy.dtype(dtype)

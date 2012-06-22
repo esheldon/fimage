@@ -6,7 +6,6 @@ from .pixmodel import model_image
 from .pixmodel import double_gauss
 
 from . import convolved
-from .convolved import ConvolvedImage
 
 from . import statistics
 from .statistics import second_moments
@@ -36,4 +35,4 @@ from . import fconv
 from . import test_moments
 
 from . import noise
-from .noise import add_noise
+from .noise import add_noise_admom, add_noise_dev, add_noise_uw

@@ -24,19 +24,28 @@ def fwhm2mom(fwhm, pixscale=1.0):
     return sigma2mom(sigma)
 
 
-def cov2sigma(cov, use_max=False):
+def cov2sigma(cov, maxe=None, use_max=False):
     if use_max:
         T = 2*max(cov[0],cov[2])
     else:
         T = cov[0] + cov[2]
-    return mom2sigma(T)
+    return mom2sigma(T, maxe=maxe)
 
-def mom2sigma(T):
+def mom2sigma(T, maxe=None):
+    """
+    If maxe is sent, treat as if that is the ellip and return the *max* of the
+    axes.  This can be used to equalize the aperture used for same "sized"
+    objects with different ellipticities.
+    """
     is_scalar = numpy.isscalar(T)
     T = array(T, ndmin=1)
     #sigma = numpy.empty(T.size, dtype='f4')
 
-    sigma = numpy.where(T > 0, sqrt(T/2), -9999.0)
+    if maxe is None:
+        sigma = numpy.where(T > 0, sqrt(T/2), -9999.0)
+    else:
+        cov=ellip2mom(T,e=maxe,theta=0)
+        sigma = sqrt( max(cov[0],cov[2]) )
 
     if is_scalar:
         sigma = sigma[0]

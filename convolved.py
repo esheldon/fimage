@@ -1,7 +1,7 @@
 from __future__ import print_function
 from pprint import pprint
 import numpy
-from numpy import sqrt, exp, array, ceil, log2, pi, ogrid, zeros
+from numpy import sqrt, exp, array, ceil, log2, pi, ogrid, zeros, where
 from numpy.fft import fftshift
 
 import images
@@ -310,6 +310,7 @@ class ConvolverBase(dict):
         self['cen_psf_uw'] = cen_uw
         self['cov_psf_admom'] = cov_admom
         self['cen_psf_admom'] = cen_admom
+        self['a4_psf'] = res['a4']
 
     def add_image_stats(self):
         mom_uw = stat.fmom(self.image)
@@ -325,6 +326,7 @@ class ConvolverBase(dict):
         self['cen_uw'] = cen_uw
         self['cov_admom'] = cov_admom
         self['cen_admom'] = cen_admom
+        self['a4'] = res['a4']
 
     def verify_image(self, image, cov, eps=2.e-3):
         '''
@@ -362,7 +364,72 @@ class ConvolverBase(dict):
             raise ValueError("moments pdiff %f not within "
                              "tolerance %f" % (erel,eps))
 
+class TrimmedConvolvedImage(ConvolverBase):
+    def __init__(self, ci, fluxfrac=0.999937):
+        """
+        "4-sigma" corresponds to 0.999937 of the flux
+        """
+        for k,v in ci.iteritems():
+            self[k] = v
 
+        self.ci = ci
+        self.objpars=ci.objpars
+        self.psfpars=ci.psfpars
+        self.fluxfrac=fluxfrac
+
+        self.trim()
+        self.add_image0_stats()
+        self.add_psf_stats()
+        self.add_image_stats()
+
+        self['cen'] = self['cen_uw']
+
+    def trim(self):
+
+        im = self.ci.image
+        row,col=ogrid[0:im.shape[0], 
+                      0:im.shape[1]]
+        rm = array(row - self.ci['cen'][0], dtype='f8')
+        cm = array(col - self.ci['cen'][1], dtype='f8')
+        radm = sqrt(rm**2 + cm**2)
+
+        radii = numpy.arange(1,im.shape[0]/2)
+        cnts=numpy.zeros(radii.size)
+        for ir,r in enumerate(radii):
+            w=where(radm <= r)
+            if w[0].size > 0:
+                cnts[ir] = im[w].sum()
+
+        cnts /= cnts.max()
+
+        w,=where(cnts > self.fluxfrac)
+        if w.size > 0:
+            rad = radii[w[0]]
+            rmin = self.ci['cen'][0]-rad
+            rmax = self.ci['cen'][0]+rad
+            cmin = self.ci['cen'][1]-rad
+            cmax = self.ci['cen'][1]+rad
+
+            if rmin < 0:
+                rmin=0
+            if rmax > (im.shape[0]-1):
+                rmax = (im.shape[0]-1)
+
+            if cmin < 0:
+                cmin=0
+            if cmax > (im.shape[1]-1):
+                cmax = (im.shape[1]-1)
+
+            self.image = self.ci.image[rmin:rmax, cmin:cmax]
+            self.image0 = self.ci.image0[rmin:rmax, cmin:cmax]
+            self.psf = self.ci.psf[rmin:rmax, cmin:cmax]
+
+        else:
+            raise ValueError("no radii found, that might be a bug!")
+            self.image = self.ci.image[rmin:rmax, cmin:cmax]
+            self.image0 = self.ci.image0[rmin:rmax, cmin:cmax]
+            self.psf = self.ci.psf[rmin:rmax, cmin:cmax]
+             
 class ConvolverGaussFFT(ConvolverBase):
     """
     Convolve models with a gaussian or double gaussian psf
@@ -626,8 +693,8 @@ class ConvolverTurbulence(ConvolverBase):
         if 'psffac' not in self:
             self['psffac'] = TURB_PADDING
         #self['psffac'] = 3.
-        if self.objpars['model'] == 'exp':
-            # The broad exponential must feel the outer psf
+        if self.objpars['model'] in ['exp','dev']:
+            # The broad exponential and dev must feel the outer psf
             self['psffac'] *= 1.5
 
         # 6 seems good enough.  Can we do this in ConvolverGaussFFT?

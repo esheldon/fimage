@@ -758,6 +758,7 @@ class ConvolverTurbulence(ConvolverBase):
         #if fac < 16:
         #    fac=16.
         self['expand_fac'] = fac
+        wlog("  expand_fac_min:",fac_min,"expand_fac:",fac)
 
         if fac > 1:
             # modify the dims to be odd, so the rebin will

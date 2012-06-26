@@ -14,6 +14,8 @@ from . import analytic
 from . import conversions
 from .conversions import mom2sigma, cov2sigma
 
+from .noise import add_noise_uw
+
 from .transform import rebin
 
 import time
@@ -368,6 +370,71 @@ class ConvolverBase(dict):
         if erel > eps:
             raise ValueError("moments pdiff %f not within "
                              "tolerance %f" % (erel,eps))
+
+    def write_fits(self, fits_file):
+        """
+        Write the images and metadata to a fits file
+
+        The images are in separate extensions 'image','psf','image0' and the
+        metadata are in a binary table 'table'
+
+        parameters
+        ----------
+        fits_file: string
+            Name of the file to write
+        ci: child of ConvolverBase
+        """
+        import fitsio
+        dt=[]
+        for k,v in self.iteritems():
+            if isinstance(v,int) or isinstance(v,long):
+                dt.append( (k, 'i8') )
+            elif isinstance(v,float):
+                dt.append( (k, 'f8') )
+            elif isinstance(v,numpy.ndarray):
+                this_t = v.dtype.descr[0][1]
+                this_n = v.size
+                if this_n > 1:
+                    this_dt = (k,this_t,this_n)
+                else:
+                    this_dt = (k,this_t)
+                dt.append(this_dt)
+            else:
+                raise ValueError("unsupported type: %s" % type(v))
+        table = numpy.zeros(1, dtype=dt)
+        for k,v in self.iteritems():
+            table[k][0] = v
+
+        with fitsio.FITS(fits_file,mode='rw',clobber=True) as fitsobj:
+            h={}
+            # note not all items will be written, only basic types,
+            # so this is not for feeding to the sim code.  The full
+            # metadata are in the table
+            for k,v in self.iteritems():
+                h[k] = v
+            
+            fitsobj.write(self.image, header=h, extname='image')
+            fitsobj.write(self.psf, extname='psf')
+            fitsobj.write(self.image0, extname='image0')
+            fitsobj.write(table, extname='table')
+
+
+class NoisyConvolvedImage(dict):
+    def __init__(self, ci, s2n, s2n_psf):
+        self.ci = ci
+        self.image = ci.image
+        self.image0 = ci.image0
+        self.psf = ci.psf
+
+        for k,v in ci.iteritems():
+            self[k] = v
+
+        if s2n > 0:
+            self.image_nonoise = ci.image
+            self.image, self['skysig'] = add_noise_uw(ci.image, s2n)
+        if s2n_psf > 0: 
+            self.psf_nonoise = ci.psf
+            self.psf, self['skysig_psf'] = add_noise_uw(ci.psf, s2n_psf)
 
 class TrimmedConvolvedImage(ConvolverBase):
     def __init__(self, ci, fluxfrac=0.999937):
@@ -810,6 +877,30 @@ class ConvolverTurbulence(ConvolverBase):
 
 
 
+
+class ConvolvedImageFromFits(dict):
+    """
+    Read a convolved image stored in fits format.
+
+    The images will be in .image, .psf, .image0.  The metadata will be copied
+    into the self dictionary.
+    """
+    def __init__(self, fitsfile):
+        import fitsio
+        with fitsio.FITS(fitsfile) as fits:
+            self.image = fits['image'][:,:]
+            self.psf = fits['psf'][:,:]
+            self.image0 = fits['image0'][:,:]
+            self.table = fits['table'][:]
+
+            self.header=fits['image'].read_header()
+            for k in self.header.keys():
+                self[k.lower()] = self.header[k]
+
+            for k in self.table.dtype.names:
+                self[k.lower()] = self.table[k][0]
+
+ 
 def test_dgauss_conv(conv='fconv'):
     # test at different resolutions to make sure
     # the recovered ellipticity is as expected

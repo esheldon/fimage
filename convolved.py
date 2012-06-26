@@ -188,7 +188,12 @@ class ConvolverBase(dict):
 
         # for calculations we will demand sigma > minres pixels
         # then sample back
-        self['minres'] = keys.get('minres',12)
+        if self.objpars['model'] == 'dev':
+            #minres_def = 24
+            minres_def = 20
+        else:
+            minres_def = 12
+        self['minres'] = keys.get('minres',minres_def)
 
         self.set_default_padding(**keys)
         self.image0=None
@@ -698,7 +703,7 @@ class ConvolverTurbulence(ConvolverBase):
             self['psffac'] *= 1.5
 
         # 6 seems good enough.  Can we do this in ConvolverGaussFFT?
-        self['minres'] = 6
+        #self['minres'] = 6
 
 
         # inherited

@@ -371,7 +371,7 @@ class ConvolverBase(dict):
             raise ValueError("moments pdiff %f not within "
                              "tolerance %f" % (erel,eps))
 
-    def write_fits(self, fits_file):
+    def write_fits(self, fits_file, extra_keys=None):
         """
         Write the images and metadata to a fits file
 
@@ -412,7 +412,10 @@ class ConvolverBase(dict):
             # metadata are in the table
             for k,v in self.iteritems():
                 h[k] = v
-            
+            if extra_keys:
+                for k,v in extra_keys.iteritems():
+                    h[k] = v
+
             fitsobj.write(self.image, header=h, extname='image')
             fitsobj.write(self.psf, extname='psf')
             fitsobj.write(self.image0, extname='image0')

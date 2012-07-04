@@ -887,22 +887,45 @@ class ConvolvedImageFromFits(dict):
 
     The images will be in .image, .psf, .image0.  The metadata will be copied
     into the self dictionary.
-    """
-    def __init__(self, fitsfile):
-        import fitsio
-        with fitsio.FITS(fitsfile) as fits:
-            self.image = fits['image'][:,:]
-            self.psf = fits['psf'][:,:]
-            self.image0 = fits['image0'][:,:]
-            self.table = fits['table'][:]
 
-            self.header=fits['image'].read_header()
+    send hid=1 or 2 for ring pairs
+    """
+    def __init__(self, fitsfile, hid=None):
+        self.hid=hid
+        self.fitsfile=fitsfile
+        self.read_data()
+
+    def read_data(self):
+        import fitsio
+
+        imname,psfname,im0name,tablename=self.get_names()
+        wlog(imname,psfname,im0name,tablename)
+        with fitsio.FITS(self.fitsfile) as fits:
+            self.image = fits[imname][:,:]
+            self.psf = fits[psfname][:,:]
+            self.image0 = fits[im0name][:,:]
+            self.table = fits[tablename][:]
+
+            self.header=fits[imname].read_header()
             for k in self.header.keys():
                 self[k.lower()] = self.header[k]
 
             for k in self.table.dtype.names:
                 self[k.lower()] = self.table[k][0]
 
+    def get_names(self):
+        imname='image'
+        psfname='psf'
+        im0name='image0'
+        tablename='table'
+
+        hid=self.hid
+        if hid is not None:
+            imname += '%d' % hid
+            psfname += '%d' % hid
+            im0name = 'image%d_0' % hid
+            tablename += '%d' % hid
+        return imname,psfname,im0name,tablename
  
 def test_dgauss_conv(conv='fconv'):
     # test at different resolutions to make sure

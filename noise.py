@@ -53,6 +53,12 @@ def add_noise_uw(im, s2n):
 
     return image, skysig
 
+def s2n_andres(im, skysig):
+    """
+    im should be sky subtracted
+    """
+    return sqrt( (im**2).sum()/skysig**2 )
+
 def add_noise_dev(im, cen, re, s2n, fluxfrac=0.85):
     """
     Add noise to an image assumed to contain an r^1/4 surface

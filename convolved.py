@@ -14,7 +14,7 @@ from . import analytic
 from . import conversions
 from .conversions import mom2sigma, cov2sigma
 
-from .noise import add_noise_uw
+from .noise import add_noise_uw, s2n_andres
 
 from .transform import rebin
 
@@ -435,9 +435,11 @@ class NoisyConvolvedImage(dict):
         if s2n > 0:
             self.image_nonoise = ci.image
             self.image, self['skysig'] = add_noise_uw(ci.image, s2n)
+            self['s2n_andres'] = s2n_andres(ci.image, self['skysig'])
         if s2n_psf > 0: 
             self.psf_nonoise = ci.psf
             self.psf, self['skysig_psf'] = add_noise_uw(ci.psf, s2n_psf)
+            self['s2n_andres_psf'] = s2n_andres(ci.psf, self['skysig_psf'])
 
 class TrimmedConvolvedImage(ConvolverBase):
     def __init__(self, ci, fluxfrac=0.999937):

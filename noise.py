@@ -16,7 +16,7 @@ from sys import stderr
 from numpy import ogrid, array, sqrt, where, ogrid
 from numpy.random import randn
 
-def add_noise_uw(im, s2n):
+def add_noise_uw(im, s2n, check=False):
     """
     Add gaussian noise to an image.
 
@@ -44,20 +44,72 @@ def add_noise_uw(im, s2n):
         A tuple with the image and error per pixel.
 
     """
-    from .statistics import interplin
 
     skysig = im.sum()/sqrt(im.size)/s2n
 
     noise_image = skysig*randn(im.size).reshape(im.shape)
     image = im + noise_image
 
+    if check:
+        s2n_check = get_s2n_uw(image, skysig)
+        print >>stderr,"S/N goal:",s2n,"found:",s2n_check
+
     return image, skysig
 
-def s2n_andres(im, skysig):
+def add_noise_matched(im, s2n, check=False):
+    """
+    Add gaussian noise to an image assuming
+    a matched filter is used.
+
+     sum(pix^2)
+    ------------ = S/N^2
+      skysig^2
+
+    thus
+        
+    sum(pix^2)
+    ---------- = skysig^2
+      (S/N)^2
+
+    parameters
+    ----------
+    im: numpy array
+        The image
+    s2n:
+        The requested S/N
+
+    outputs
+    -------
+    image, skysig
+        A tuple with the image and error per pixel.
+
+    """
+
+    skysig2 = (im**2).sum()/s2n**2
+    skysig = sqrt(skysig2)
+
+    noise_image = skysig*randn(im.size).reshape(im.shape)
+    image = im + noise_image
+
+    if check:
+        s2n_check = get_s2n_matched(image, skysig)
+        print >>stderr,"S/N goal:",s2n,"found:",s2n_check
+
+    return image, skysig
+
+
+def get_s2n_matched(im, skysig):
     """
     im should be sky subtracted
     """
     return sqrt( (im**2).sum()/skysig**2 )
+
+def get_s2n_uw(im, skysig):
+    """
+    im should be sky subtracted
+    """
+    return im.sum()/sqrt(im.size)/skysig
+
 
 def add_noise_dev(im, cen, re, s2n, fluxfrac=0.85):
     """

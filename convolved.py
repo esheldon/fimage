@@ -14,7 +14,7 @@ from . import analytic
 from . import conversions
 from .conversions import mom2sigma, cov2sigma
 
-from .noise import add_noise_uw, s2n_andres
+from .noise import add_noise_uw, add_noise_matched, get_s2n_matched, get_s2n_uw
 
 from .transform import rebin
 
@@ -423,23 +423,44 @@ class ConvolverBase(dict):
 
 
 class NoisyConvolvedImage(dict):
-    def __init__(self, ci, s2n, s2n_psf):
+    def __init__(self, ci, s2n, s2n_psf, s2n_method='matched'):
         self.ci = ci
         self.image = ci.image
         self.image0 = ci.image0
         self.psf = ci.psf
+
+        self.s2n_method=s2n_method
 
         for k,v in ci.iteritems():
             self[k] = v
 
         if s2n > 0:
             self.image_nonoise = ci.image
-            self.image, self['skysig'] = add_noise_uw(ci.image, s2n)
-            self['s2n_andres'] = s2n_andres(ci.image, self['skysig'])
+            (self.image, 
+             self['skysig'], 
+             self['s2n_uw'], 
+             self['s2n_matched']) = self.add_noise(ci.image,s2n)
+
         if s2n_psf > 0: 
             self.psf_nonoise = ci.psf
-            self.psf, self['skysig_psf'] = add_noise_uw(ci.psf, s2n_psf)
-            self['s2n_andres_psf'] = s2n_andres(ci.psf, self['skysig_psf'])
+            (self.psf, 
+             self['skysig_psf'], 
+             self['s2n_uw_psf'], 
+             self['s2n_matched_psf']) = self.add_noise(ci.psf,s2n)
+
+    def add_noise(self, image, s2n):
+        if self.s2n_method == 'matched':
+            noisy_image, skysig = add_noise_matched(image, s2n)
+            s2n_uw = get_s2n_uw(image, skysig)
+            s2n_matched = s2n
+        elif self.s2n_method=='uw':
+            noisy_image, skysig = add_noise_uw(image, s2n)
+            s2n_matched = get_s2n_matched(image, skysig)
+            s2n_uw = s2n
+        else:
+            raise ValueError("bad s2n_method: '%s'" % self.s2n_method)
+
+        return noisy_image, skysig, s2n_uw, s2n_matched
 
 class TrimmedConvolvedImage(ConvolverBase):
     def __init__(self, ci, fluxfrac=0.999937):

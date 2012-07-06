@@ -13,7 +13,7 @@ For unweighted
 
 """
 from sys import stderr
-from numpy import ogrid, array, sqrt, where, ogrid
+from numpy import ogrid, array, sqrt, where, ogrid, zeros, arange
 from numpy.random import randn
 
 def add_noise_uw(im, s2n, check=False):
@@ -56,7 +56,7 @@ def add_noise_uw(im, s2n, check=False):
 
     return image, skysig
 
-def add_noise_matched(im, s2n, check=False):
+def add_noise_matched(im, s2n, cen, fluxfrac=None, check=False):
     """
     Add gaussian noise to an image assuming
     a matched filter is used.
@@ -85,8 +85,38 @@ def add_noise_matched(im, s2n, check=False):
 
     """
 
-    skysig2 = (im**2).sum()/s2n**2
-    skysig = sqrt(skysig2)
+    if fluxfrac is not None:
+        row,col=ogrid[0:im.shape[0], 
+                      0:im.shape[1]]
+        rm = array(row - cen[0], dtype='f8')
+        cm = array(col - cen[1], dtype='f8')
+        radm = sqrt(rm**2 + cm**2)
+
+        radii = arange(1,im.shape[0]/2)
+        cnts=zeros(radii.size)
+        for ir,r in enumerate(radii):
+            w=where(radm <= r)
+            if w[0].size > 0:
+                cnts[ir] = im[w].sum()
+
+        cnts /= cnts.max()
+        wr,=where(cnts > fluxfrac)
+        if wr.size > 0:
+            radmax = radii[wr.min()]
+        else:
+            radmax = radii[-1]
+
+
+        w=where(radm <= radmax)
+        print 'radmax:',radmax,'image shape:',im.shape,"wsize:",w[0].size
+
+        skysig2 = (im[w]**2).sum()/s2n**2
+        skysig = sqrt(skysig2)
+
+    else:
+
+        skysig2 = (im**2).sum()/s2n**2
+        skysig = sqrt(skysig2)
 
     noise_image = skysig*randn(im.size).reshape(im.shape)
     image = im + noise_image

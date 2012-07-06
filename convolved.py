@@ -423,13 +423,15 @@ class ConvolverBase(dict):
 
 
 class NoisyConvolvedImage(dict):
-    def __init__(self, ci, s2n, s2n_psf, s2n_method='matched'):
+    def __init__(self, ci, s2n, s2n_psf, s2n_method='matched', 
+                 fluxfrac=None):
         self.ci = ci
         self.image = ci.image
         self.image0 = ci.image0
         self.psf = ci.psf
 
         self.s2n_method=s2n_method
+        self.fluxfrac=fluxfrac
 
         for k,v in ci.iteritems():
             self[k] = v
@@ -446,14 +448,18 @@ class NoisyConvolvedImage(dict):
             (self.psf, 
              self['skysig_psf'], 
              self['s2n_uw_psf'], 
-             self['s2n_matched_psf']) = self.add_noise(ci.psf,s2n)
+             self['s2n_matched_psf']) = self.add_noise(ci.psf,s2n_psf)
 
     def add_noise(self, image, s2n):
         if self.s2n_method == 'matched':
-            noisy_image, skysig = add_noise_matched(image, s2n)
+            wlog("implementing fluxfrac:",self.fluxfrac)
+            noisy_image, skysig = add_noise_matched(image, s2n, self.ci['cen'],
+                                                    fluxfrac=self.fluxfrac)
             s2n_uw = get_s2n_uw(image, skysig)
             s2n_matched = s2n
         elif self.s2n_method=='uw':
+            if self.fluxfrac is not None:
+                raise ValueError("fluxfrac not implemented for uw yet")
             noisy_image, skysig = add_noise_uw(image, s2n)
             s2n_matched = get_s2n_matched(image, skysig)
             s2n_uw = s2n
@@ -465,14 +471,17 @@ class NoisyConvolvedImage(dict):
 class TrimmedConvolvedImage(ConvolverBase):
     def __init__(self, ci, fluxfrac=0.999937):
         """
+        "3-sigma" corresponds to 0.9973
         "4-sigma" corresponds to 0.999937 of the flux
         """
         for k,v in ci.iteritems():
             self[k] = v
 
         self.ci = ci
-        self.objpars=ci.objpars
-        self.psfpars=ci.psfpars
+        #self.objpars=ci.objpars
+        #self.psfpars=ci.psfpars
+        self.objpars={}
+        self.psfpars={}
         self.fluxfrac=fluxfrac
 
         self.trim()

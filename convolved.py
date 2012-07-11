@@ -186,7 +186,9 @@ class ConvolverBase(dict):
         defsub=1
         self['image_nsub'] = keys.get('image_nsub', defsub)
         self['expand_fac_min'] = keys.get('expand_fac_min', 1)
-        stderr.write("image_nsub: %d " % self['image_nsub'])
+        self['verbose'] = keys.get('verbose',False)
+        if self['verbose']:
+            wlog("image_nsub:",self['image_nsub'])
 
         # for calculations we will demand sigma > minres pixels
         # then sample back
@@ -452,7 +454,8 @@ class NoisyConvolvedImage(dict):
 
     def add_noise(self, image, s2n):
         if self.s2n_method == 'matched':
-            wlog("implementing fluxfrac:",self.fluxfrac)
+            if self.fluxfrac is not None:
+                wlog("implementing fluxfrac:",self.fluxfrac)
             noisy_image, skysig = add_noise_matched(image, s2n, self.ci['cen'],
                                                     fluxfrac=self.fluxfrac)
             s2n_uw = get_s2n_uw(image, skysig)
@@ -586,7 +589,6 @@ class ConvolverGaussFFT(ConvolverBase):
         # sizes for different ellipticities
         sigma_psf = cov2sigma(psf_cov,maxe=0.8)
         sigma_obj = cov2sigma(obj_cov,maxe=0.8)
-
 
         imsize = 2*sqrt( psffac**2*sigma_psf**2 + objfac**2*sigma_obj**2)
         dims = array([imsize]*2,dtype='i8')
@@ -865,7 +867,8 @@ class ConvolverTurbulence(ConvolverBase):
         #if fac < 16:
         #    fac=16.
         self['expand_fac'] = fac
-        wlog("  expand_fac_min:",fac_min,"expand_fac:",fac)
+        if self['verbose']:
+            wlog("  expand_fac_min:",fac_min,"expand_fac:",fac)
 
         if fac > 1:
             # modify the dims to be odd, so the rebin will
@@ -931,7 +934,6 @@ class ConvolvedImageFromFits(dict):
         import fitsio
 
         imname,psfname,im0name,tablename=self.get_names()
-        wlog(imname,psfname,im0name,tablename)
         with fitsio.FITS(self.fitsfile) as fits:
             self.image = fits[imname][:,:]
             self.psf = fits[psfname][:,:]

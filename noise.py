@@ -108,7 +108,7 @@ def add_noise_matched(im, s2n, cen, fluxfrac=None, check=False):
 
 
         w=where(radm <= radmax)
-        print 'radmax:',radmax,'image shape:',im.shape,"wsize:",w[0].size
+        #print 'radmax:',radmax,'image shape:',im.shape,"wsize:",w[0].size
 
         skysig2 = (im[w]**2).sum()/s2n**2
         skysig = sqrt(skysig2)
@@ -272,6 +272,13 @@ def add_noise_admom(im, s2n, check=False):
         print >>stderr,"    meas S/N after noise:  ",out['s2n']
 
     return image, skysig
+
+def get_s2n_admom(image, cen, skysig):
+    import admom
+    Tguess=2.
+    out = admom.admom(image, cen[0], cen[1], guess=Tguess, sigsky=skysig)
+    return out['s2n']
+
 
 _dev_r_over_re=\
     array([  0.33333333,   0.66666667,   1.        ,   1.33333333,

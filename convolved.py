@@ -14,7 +14,7 @@ from . import analytic
 from . import conversions
 from .conversions import mom2sigma, cov2sigma
 
-from .noise import add_noise_uw, add_noise_matched, get_s2n_matched, get_s2n_uw
+from .noise import add_noise_uw, add_noise_matched, get_s2n_matched, get_s2n_uw, get_s2n_admom
 
 from .transform import rebin
 
@@ -434,6 +434,7 @@ class NoisyConvolvedImage(dict):
 
         self.s2n_method=s2n_method
         self.fluxfrac=fluxfrac
+        self['verbose'] = ci.get('verbose',False)
 
         for k,v in ci.iteritems():
             self[k] = v
@@ -443,33 +444,42 @@ class NoisyConvolvedImage(dict):
             (self.image, 
              self['skysig'], 
              self['s2n_uw'], 
-             self['s2n_matched']) = self.add_noise(ci.image,s2n)
+             self['s2n_matched'], 
+             self['s2n_admom']) = self.add_noise(ci.image,s2n)
 
         if s2n_psf > 0: 
             self.psf_nonoise = ci.psf
             (self.psf, 
              self['skysig_psf'], 
              self['s2n_uw_psf'], 
-             self['s2n_matched_psf']) = self.add_noise(ci.psf,s2n_psf)
+             self['s2n_matched_psf'],
+             self['s2n_admom_psf']) = self.add_noise(ci.psf,s2n_psf)
 
     def add_noise(self, image, s2n):
         if self.s2n_method == 'matched':
-            if self.fluxfrac is not None:
+            if self.fluxfrac is not None and self['verbose']:
                 wlog("implementing fluxfrac:",self.fluxfrac)
             noisy_image, skysig = add_noise_matched(image, s2n, self.ci['cen'],
                                                     fluxfrac=self.fluxfrac)
             s2n_uw = get_s2n_uw(image, skysig)
             s2n_matched = s2n
+            s2n_admom = get_s2n_admom(image, self.ci['cen_admom'], skysig)
         elif self.s2n_method=='uw':
             if self.fluxfrac is not None:
                 raise ValueError("fluxfrac not implemented for uw yet")
             noisy_image, skysig = add_noise_uw(image, s2n)
             s2n_matched = get_s2n_matched(image, skysig)
             s2n_uw = s2n
+            s2n_admom = get_s2n_admom(image, self.ci['cen_admom'], skysig)
+        elif self.s2n_method=='admom':
+            noisy_image, skysig = add_noise_uw(image, s2n)
+            s2n_admom=s2n
+            s2n_matched = get_s2n_matched(image, skysig)
+            s2n_uw = get_s2n_uw(image, skysig)
         else:
             raise ValueError("bad s2n_method: '%s'" % self.s2n_method)
 
-        return noisy_image, skysig, s2n_uw, s2n_matched
+        return noisy_image, skysig, s2n_uw, s2n_matched, s2n_admom
 
 class TrimmedConvolvedImage(ConvolverBase):
     def __init__(self, ci, fluxfrac=0.999937):

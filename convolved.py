@@ -14,7 +14,7 @@ from . import analytic
 from . import conversions
 from .conversions import mom2sigma, cov2sigma
 
-from .noise import add_noise_uw, add_noise_matched, get_s2n_matched, get_s2n_uw, get_s2n_admom
+from .noise import add_noise_uw, add_noise_matched, add_noise_admom, get_s2n_matched, get_s2n_uw, get_s2n_admom
 
 from .transform import rebin
 
@@ -432,6 +432,11 @@ class NoisyConvolvedImage(dict):
         self.image0 = ci.image0
         self.psf = ci.psf
 
+        if hasattr(ci,'objpars'):
+            self.objpars=ci.objpars
+        if hasattr(ci,'psfpars'):
+            self.psfpars=ci.psfpars
+
         self.s2n_method=s2n_method
         self.fluxfrac=fluxfrac
         self['verbose'] = ci.get('verbose',False)
@@ -472,7 +477,7 @@ class NoisyConvolvedImage(dict):
             s2n_uw = s2n
             s2n_admom = get_s2n_admom(image, self.ci['cen_admom'], skysig)
         elif self.s2n_method=='admom':
-            noisy_image, skysig = add_noise_uw(image, s2n)
+            noisy_image, skysig = add_noise_admom(image, s2n)
             s2n_admom=s2n
             s2n_matched = get_s2n_matched(image, skysig)
             s2n_uw = get_s2n_uw(image, skysig)

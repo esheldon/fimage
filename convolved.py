@@ -826,22 +826,33 @@ class ConvolverGMix(ConvolverBase):
 
         self.nsub=16
 
-        self['T'] = self.obj_gmix.get_T()
-        self['T_psf'] = self.psf_gmix.get_T()
 
-        # these implemented in this class
+        self.set_etrue_T()
         self.set_dims_and_cen()
         self.make_images()
 
         self.add_psf_stats()
         self.add_image_stats()
 
+    def set_etrue_T(self):
+        e1,e2,T = self.obj0_gmix.get_e1e2T()
+        e1_psf,e2_psf,T_psf = self.psf_gmix.get_e1e2T()
+        self['Ttrue'] = T
+        self['e1true'] = e1
+        self['e2true'] = e2
+        self['etrue'] = sqrt(e1**2 + e2**2)
+
+        self['Ttrue_psf'] = T_psf
+        self['e1true_psf'] = e1_psf
+        self['e2true_psf'] = e2_psf
+        self['etrue_psf'] = sqrt(e1_psf**2 + e2_psf**2)
+
     def set_dims_and_cen(self):
         """
         Simple for analytic convolutions
         """
         
-        sigma=mom2sigma(self['T'])
+        sigma=mom2sigma(self['Ttrue'])
 
         fac=GAUSS_PADDING
 
@@ -869,11 +880,10 @@ class ConvolverGMix(ConvolverBase):
         self.image0=None
 
     def add_image_stats(self):
-        self['cen'] = self.obj0_gmix.get_cen()
-        self['cen_uw'] = self['cen']
+        self['cen_uw'] = self.obj0_gmix.get_cen()
 
         res = admom.admom(self.image, self['cen'][0],self['cen'][1],
-                          guess=self['T']/2.)
+                          guess=self['Ttrue']/2.)
 
         cov_admom = array([res['Irr'],res['Irc'],res['Icc']])
         cen_admom = array([res['wrow'], res['wcol']])
@@ -887,7 +897,7 @@ class ConvolverGMix(ConvolverBase):
         self['cen_psf_uw'] = self['cen_psf']
 
         res = admom.admom(self.psf,self['cen_psf'][0],self['cen_psf'][1],
-                          guess=self['T_psf']/2.)
+                          guess=self['Ttrue_psf']/2.)
 
         cov_admom = array([res['Irr'],res['Irc'],res['Icc']])
         cen_admom = array([res['wrow'], res['wcol']])

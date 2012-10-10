@@ -171,9 +171,9 @@ class ConvolverBase(dict):
         self.objpars=objpars
         self.psfpars=psfpars
 
-        if self.objpars['model'] not in ['gauss','exp','dev']:
+        if self.objpars['model'] not in ['gauss','exp','dev','gexp','gdev']:
             raise ValueError("only support gauss/exp/dev objects")
-        if self.psfpars['model'] not in ['gauss','dgauss','turb']:
+        if self.psfpars['model'] not in ['gauss','dgauss','turb','gturb']:
             raise ValueError("only support gauss/dgauss/turb psf")
 
         if 'cov' in self.objpars:
@@ -803,6 +803,98 @@ class ConvolverAllGauss(ConvolverBase):
 
             self.psf = pixmodel.model_image('gauss', self['dims'], self['cen'],
                                             psf_cov,nsub=nsub)
+
+class ConvolverGMix(ConvolverBase):
+    """
+    Use gaussian mixture models for everything
+
+    The center is re-set based on internal algorithms
+    """
+    def __init__(self, obj_gmix, psf_gmix, **keys):
+        """
+        pars are GMix objects
+        """
+        import gmix_image
+
+        if (not isinstance(obj_gmix,gmix_image.GMix) or
+            not isinstance(psf_gmix,gmix_image.GMix)):
+            raise ValueError("send GMix objects")
+
+        self.obj0_gmix=obj_gmix
+        self.psf_gmix=psf_gmix
+        self.obj_gmix = self.obj0_gmix.convolve(self.psf_gmix)
+
+        self.nsub=16
+
+        self['T'] = self.obj_gmix.get_T()
+        self['T_psf'] = self.psf_gmix.get_T()
+
+        # these implemented in this class
+        self.set_dims_and_cen()
+        self.make_images()
+
+        self.add_psf_stats()
+        self.add_image_stats()
+
+    def set_dims_and_cen(self):
+        """
+        Simple for analytic convolutions
+        """
+        
+        sigma=mom2sigma(self['T'])
+
+        fac=GAUSS_PADDING
+
+        imsize = fac*2*sigma
+        dims = array([imsize]*2,dtype='i8')
+        if (dims[0] % 2) == 0:
+            dims += 1
+        cen=(dims-1)/2
+
+        self['dims'] = dims
+        self['cen'] = cen
+
+        self.psf_gmix.set_cen(cen[0],cen[1])
+        self.obj_gmix.set_cen(cen[0],cen[1])
+        self.obj0_gmix.set_cen(cen[0],cen[1])
+
+
+    def make_images(self):
+        import gmix_image
+
+        self.psf = gmix_image.gmix2image(self.psf_gmix,self['dims'],
+                                         nsub=self.nsub)
+        self.image = gmix_image.gmix2image(self.obj_gmix,self['dims'],
+                                           nsub=self.nsub)
+        self.image0=None
+
+    def add_image_stats(self):
+        self['cen'] = self.obj0_gmix.get_cen()
+        self['cen_uw'] = self['cen']
+
+        res = admom.admom(self.image, self['cen'][0],self['cen'][1],
+                          guess=self['T']/2.)
+
+        cov_admom = array([res['Irr'],res['Irc'],res['Icc']])
+        cen_admom = array([res['wrow'], res['wcol']])
+
+        self['cov_admom'] = cov_admom
+        self['cen_admom'] = cen_admom
+
+
+    def add_psf_stats(self):
+        self['cen_psf'] = self.psf_gmix.get_cen()
+        self['cen_psf_uw'] = self['cen_psf']
+
+        res = admom.admom(self.psf,self['cen_psf'][0],self['cen_psf'][1],
+                          guess=self['T_psf']/2.)
+
+        cov_admom = array([res['Irr'],res['Irc'],res['Icc']])
+        cen_admom = array([res['wrow'], res['wcol']])
+        self['cov_psf_admom'] = cov_admom
+        self['cen_psf_admom'] = cen_admom
+ 
+
 
 class ConvolverTurbulence(ConvolverBase):
     """

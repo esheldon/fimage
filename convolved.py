@@ -834,13 +834,19 @@ class ConvolverGMix(ConvolverBase):
         self.add_psf_stats()
         self.add_image_stats()
 
+
     def set_etrue_T(self):
+
         e1,e2,T = self.obj0_gmix.get_e1e2T()
+        e1conv,e2conv,Tconv = self.obj_gmix.get_e1e2T()
         e1_psf,e2_psf,T_psf = self.psf_gmix.get_e1e2T()
+
         self['Ttrue'] = T
         self['e1true'] = e1
         self['e2true'] = e2
         self['etrue'] = sqrt(e1**2 + e2**2)
+
+        self['Ttrue_conv'] = Tconv
 
         self['Ttrue_psf'] = T_psf
         self['e1true_psf'] = e1_psf
@@ -852,7 +858,7 @@ class ConvolverGMix(ConvolverBase):
         Simple for analytic convolutions
         """
         
-        sigma=mom2sigma(self['Ttrue'])
+        sigma=mom2sigma(self['Ttrue_conv'])
 
         fac=GAUSS_PADDING
 
@@ -904,6 +910,57 @@ class ConvolverGMix(ConvolverBase):
         self['cov_psf_admom'] = cov_admom
         self['cen_psf_admom'] = cen_admom
  
+    def trim(self, fluxfrac=0.997):
+        im = self.image
+        row,col=ogrid[0:im.shape[0], 
+                      0:im.shape[1]]
+        rm = array(row - self['cen'][0], dtype='f8')
+        cm = array(col - self['cen'][1], dtype='f8')
+        radm = sqrt(rm**2 + cm**2)
+
+        radii = numpy.arange(1,im.shape[0]/2)
+        cnts=numpy.zeros(radii.size)
+        for ir,r in enumerate(radii):
+            w=where(radm <= r)
+            if w[0].size > 0:
+                cnts[ir] = im[w].sum()
+
+        cnts /= cnts.max()
+
+        w,=where(cnts > fluxfrac)
+        if w.size > 0:
+            rad = radii[w[0]]
+            rmin = self['cen'][0]-rad
+            rmax = self['cen'][0]+rad
+            cmin = self['cen'][1]-rad
+            cmax = self['cen'][1]+rad
+
+            if rmin < 0:
+                rmin=0
+            if rmax > (im.shape[0]-1):
+                rmax = (im.shape[0]-1)
+
+            if cmin < 0:
+                cmin=0
+            if cmax > (im.shape[1]-1):
+                cmax = (im.shape[1]-1)
+
+            self.image = self.image[rmin:rmax, cmin:cmax]
+            self.psf = self.psf[rmin:rmax, cmin:cmax]
+
+            # reset dims and centers
+            self['dims'] = self.image.shape
+            cen = [self['cen'][0]-rmin, self['cen'][0]-cmin]
+            self['cen']=cen
+
+            self.psf_gmix.set_cen(cen[0],cen[1])
+            self.obj_gmix.set_cen(cen[0],cen[1])
+            self.obj0_gmix.set_cen(cen[0],cen[1])
+
+            self.add_image_stats()
+            self.add_psf_stats()
+        else:
+            raise ValueError("no radii found, that might be a bug!")
 
 
 class ConvolverTurbulence(ConvolverBase):

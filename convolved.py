@@ -263,6 +263,7 @@ class ConvolverBase(dict):
 
 
     def add_image0_stats(self):
+        """
         mom = stat.fmom(self.image0)
         cov_meas = mom['cov']
         cen_meas = mom['cen']
@@ -270,6 +271,7 @@ class ConvolverBase(dict):
         res = admom.admom(self.image0, cen_meas[0],cen_meas[1], 
                           guess=(cov_meas[0]+cov_meas[1])/2 )
         cov_meas_admom = array([res['Irr'],res['Irc'],res['Icc']])
+        """
 
         pars = self.objpars
 
@@ -278,7 +280,7 @@ class ConvolverBase(dict):
         cen_uw = mom['cen']
         res = admom.admom(self.image0, cen_uw[0],cen_uw[1], 
                           guess=(cov_uw[0]+cov_uw[2])/2)
-        
+
         cov_admom = array([res['Irr'],res['Irc'],res['Icc']])
         cen_admom = array([res['wrow'], res['wcol']])
 
@@ -289,8 +291,7 @@ class ConvolverBase(dict):
 
         self['cov_image0_uw'] = cov_uw
         self['cen_image0_uw'] = cen_uw
-        self['cov_image0_admom'] = cov_admom
-        self['cen_image0_admom'] = cen_admom
+
 
         e1_uw = (cov_uw[2]-cov_uw[0])/(cov_uw[2]+cov_uw[0])
         e2_uw = 2*cov_uw[1]/(cov_uw[2]+cov_uw[0])
@@ -321,6 +322,7 @@ class ConvolverBase(dict):
         self['cen_psf_admom'] = cen_admom
         self['a4_psf'] = res['a4']
 
+
     def add_image_stats(self):
         mom_uw = stat.fmom(self.image)
         cov_uw = mom_uw['cov']
@@ -328,6 +330,10 @@ class ConvolverBase(dict):
 
         res = admom.admom(self.image, cen_uw[0], cen_uw[1], 
                           guess=(cov_uw[0]+cov_uw[2])/2)
+
+        if res['whyflag'] != 0:
+            raise ValueError("admom failure: '%s'" % res['whystr'])
+
         cov_admom = array([res['Irr'],res['Irc'],res['Icc']])
         cen_admom = array([res['wrow'], res['wcol']])
 
@@ -336,6 +342,9 @@ class ConvolverBase(dict):
         self['cov_admom'] = cov_admom
         self['cen_admom'] = cen_admom
         self['a4'] = res['a4']
+
+        self['e1_admom'] = res['e1']
+        self['e2_admom'] = res['e2']
 
     def verify_image(self, image, cov, eps=2.e-3):
         '''

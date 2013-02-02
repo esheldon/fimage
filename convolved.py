@@ -764,7 +764,10 @@ class ConvolverAllGauss(ConvolverBase):
         dims = array([imsize]*2,dtype='i8')
         if (dims[0] % 2) == 0:
             dims += 1
-        cen=(dims-1)/2
+        #cen=(dims-1)/2
+        cen=(dims-1)/2.
+        #cen[0] = cen[0] + 0.223423
+        #cen[1] = cen[0] - 0.15234
 
         self['dims'] = dims
         self['cen'] = cen
@@ -905,7 +908,10 @@ class ConvolverGMix(ConvolverBase):
 
         self['cov_admom'] = cov_admom
         self['cen_admom'] = cen_admom
+        self['a4'] = res['a4']
 
+        self['e1_admom'] = res['e1']
+        self['e2_admom'] = res['e2']
 
     def add_psf_stats(self):
         self['cen_psf'] = self.psf_gmix.get_cen()
@@ -918,6 +924,7 @@ class ConvolverGMix(ConvolverBase):
         cen_admom = array([res['wrow'], res['wcol']])
         self['cov_psf_admom'] = cov_admom
         self['cen_psf_admom'] = cen_admom
+        self['a4_psf'] = res['a4']
  
     def trim(self, fluxfrac=0.997):
         im = self.image

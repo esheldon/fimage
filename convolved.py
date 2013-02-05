@@ -828,6 +828,8 @@ class ConvolverGMix(ConvolverBase):
         """
         import gmix_image
 
+        self.update(keys)
+
         if (not isinstance(obj_gmix,gmix_image.GMix) or
             not isinstance(psf_gmix,gmix_image.GMix)):
             raise ValueError("send GMix objects")
@@ -873,6 +875,8 @@ class ConvolverGMix(ConvolverBase):
         sigma=mom2sigma(self['Ttrue_conv'])
 
         fac=GAUSS_PADDING
+        if 'pad_mult' in self:
+            fac *= self['pad_mult']
 
         imsize = fac*2*sigma
         dims = array([imsize]*2,dtype='i8')

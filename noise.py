@@ -13,6 +13,7 @@ For unweighted
 
 """
 from sys import stderr
+import numpy
 from numpy import ogrid, array, sqrt, where, ogrid, zeros, arange
 from numpy.random import randn
 
@@ -140,6 +141,15 @@ def get_s2n_uw(im, skysig):
     """
     return im.sum()/sqrt(im.size)/skysig
 
+def get_s2n_uw_aperture(im, skysig, cen, radius):
+    row,col=numpy.mgrid[0:im.shape[0], 0:im.shape[1]]
+
+    r=numpy.sqrt( (row-cen[0])**2 + (col-cen[1])**2 )
+
+    w=numpy.where(r < radius)
+
+    imsub=im[w]
+    return get_s2n_uw(imsub, skysig)
 
 def add_noise_dev(im, cen, re, s2n, fluxfrac=0.85):
     """

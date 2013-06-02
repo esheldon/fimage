@@ -57,7 +57,7 @@ def add_noise_uw(im, s2n, check=False):
 
     return image, skysig
 
-def add_noise_matched(im, s2n, cen, fluxfrac=None, check=False):
+def add_noise_matched(im, s2n, cen=None, fluxfrac=None, check=False):
     """
     Add gaussian noise to an image assuming
     a matched filter is used.
@@ -79,6 +79,10 @@ def add_noise_matched(im, s2n, cen, fluxfrac=None, check=False):
     s2n:
         The requested S/N
 
+    fluxfrac: optional
+        integrate to some fraction of total flux
+    cen: optional
+        If fluxfrac is sent, also send a center
     outputs
     -------
     image, skysig
@@ -87,6 +91,9 @@ def add_noise_matched(im, s2n, cen, fluxfrac=None, check=False):
     """
 
     if fluxfrac is not None:
+        if cen is not None:
+            raise ValueError("send cen= with fluxfrac")
+
         row,col=ogrid[0:im.shape[0], 
                       0:im.shape[1]]
         rm = array(row - cen[0], dtype='f8')

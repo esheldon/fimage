@@ -473,8 +473,9 @@ class NoisyConvolvedImage(dict):
         if self.s2n_method == 'matched':
             if self.fluxfrac is not None and self['verbose']:
                 wlog("implementing fluxfrac:",self.fluxfrac)
-            noisy_image, skysig = add_noise_matched(image, s2n, self.ci['cen'],
-                                                    fluxfrac=self.fluxfrac)
+            noisy_image, skysig = add_noise_matched(image, s2n, 
+                                                    fluxfrac=self.fluxfrac,
+                                                    cen=self.ci['cen'],)
             s2n_uw = get_s2n_uw(image, skysig)
             s2n_matched = s2n
             s2n_admom = get_s2n_admom(image, self.ci['cen_admom'], skysig)
@@ -899,6 +900,8 @@ class ConvolverGMix(ConvolverBase):
                                          nsub=self.nsub)
         self.image = gmix_image.gmix2image(self.obj_gmix,self['dims'],
                                            nsub=self.nsub)
+        #self.image0 = gmix_image.gmix2image(self.obj0_gmix,self['dims'],
+        #                                    nsub=self.nsub)
         self.image0=None
 
     def add_image_stats(self):

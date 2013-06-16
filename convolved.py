@@ -167,9 +167,13 @@ class ConvolverBase(dict):
     def __init__(self, objpars, psfpars, **keys):
         """
         Abstract base class
+
+        Note center_rand will be zero centered generally
         """
         self.objpars=objpars
         self.psfpars=psfpars
+
+        self.center_rand=keys.get('center_rand',None)
 
         if self.objpars['model'] not in ['gauss','exp','dev','gexp','gdev']:
             raise ValueError("only support gauss/exp/dev objects")
@@ -624,6 +628,8 @@ class ConvolverGaussFFT(ConvolverBase):
 
         self['cen'] = (dims-1.)/2.
 
+        if self.center_rand is not None:
+            self['cen'] += self.center_rand.sample()
 
         #
         # do we need to expand before convolving?
@@ -766,13 +772,15 @@ class ConvolverAllGauss(ConvolverBase):
         if (dims[0] % 2) == 0:
             dims += 1
         #cen=(dims-1)/2
-        cen=(dims-1)/2.
+        cen=(dims-1.)/2.
         #cen[0] = cen[0] + 0.223423
         #cen[1] = cen[0] - 0.15234
 
         self['dims'] = dims
         self['cen'] = cen
 
+        if self.center_rand is not None:
+            self['cen'] += self.center_rand.sample()
 
     def make_images(self):
         """
@@ -831,6 +839,7 @@ class ConvolverGMix(ConvolverBase):
 
         self.update(keys)
 
+
         if (not isinstance(obj_gmix,gmix_image.GMix) or
             not isinstance(psf_gmix,gmix_image.GMix)):
             raise ValueError("send GMix objects")
@@ -841,6 +850,7 @@ class ConvolverGMix(ConvolverBase):
 
         self.nsub=16
 
+        self.center_rand=keys.get('center_rand',None)
 
         self.set_etrue_T()
         self.set_dims_and_cen()
@@ -883,10 +893,13 @@ class ConvolverGMix(ConvolverBase):
         dims = array([imsize]*2,dtype='i8')
         if (dims[0] % 2) == 0:
             dims += 1
-        cen=(dims-1)/2
+        cen=(dims-1.0)/2.0
 
         self['dims'] = dims
         self['cen'] = cen
+
+        if self.center_rand is not None:
+            self['cen'] += self.center_rand.sample()
 
         self.psf_gmix.set_cen(cen[0],cen[1])
         self.obj_gmix.set_cen(cen[0],cen[1])
@@ -1040,7 +1053,7 @@ class ConvolverTurbulence(ConvolverBase):
         if (dims[0] % 2) != 0:
             dims += 1
         self['dims'] = dims
-        self['cen'] = dims/2
+        self['cen'] = dims/2.0
 
 
         # the idea of "sigma" has no meaning for this type of psf
@@ -1082,6 +1095,9 @@ class ConvolverTurbulence(ConvolverBase):
             self['edims'] = self['dims']
             self['ecen'] = self['cen']
             self.objpars['ecov'] = self.objpars['cov']
+
+        if self.center_rand is not None:
+            self['cen'] += self.center_rand.sample()
 
     def make_images(self):
         """

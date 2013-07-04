@@ -167,17 +167,12 @@ class ConvolverBase(dict):
     def __init__(self, objpars, psfpars, **keys):
         """
         Abstract base class
-
-        Note center_dist will be zero centered generally It should have the
-        sample() method to return a two element array for adding the the
-        existing center.
-
         """
 
         self.objpars=objpars
         self.psfpars=psfpars
 
-        self.center_dist=keys.get('center_dist',None)
+        self.center_offset=keys.get('center_offset',None)
 
         if self.objpars['model'] not in ['gauss','exp','dev','gexp','gdev']:
             raise ValueError("only support gauss/exp/dev objects")
@@ -632,8 +627,8 @@ class ConvolverGaussFFT(ConvolverBase):
 
         self['cen'] = (dims-1.)/2.
 
-        if self.center_dist is not None:
-            self['cen'] += self.center_dist.sample()
+        if self.center_offset is not None:
+            self['cen'] += self.center_offset
 
         #
         # do we need to expand before convolving?
@@ -783,8 +778,8 @@ class ConvolverAllGauss(ConvolverBase):
         self['dims'] = dims
         self['cen'] = cen
 
-        if self.center_dist is not None:
-            self['cen'] += self.center_dist.sample()
+        if self.center_offset is not None:
+            self['cen'] += self.center_offset
 
     def make_images(self):
         """
@@ -854,7 +849,7 @@ class ConvolverGMix(ConvolverBase):
 
         self.nsub=16
 
-        self.center_dist=keys.get('center_dist',None)
+        self.center_offset=keys.get('center_offset',None)
 
         self.set_etrue_T()
         self.set_dims_and_cen()
@@ -902,8 +897,8 @@ class ConvolverGMix(ConvolverBase):
 
         cen=(dims-1.0)/2.0
 
-        if self.center_dist is not None:
-            cen += self.center_dist.sample()
+        if self.center_offset is not None:
+            cen += self.center_offset
 
         self['dims'] = dims
         self['cen'] = cen
@@ -1104,8 +1099,8 @@ class ConvolverTurbulence(ConvolverBase):
             self['ecen'] = self['cen']
             self.objpars['ecov'] = self.objpars['cov']
 
-        if self.center_dist is not None:
-            self['cen'] += self.center_dist.sample()
+        if self.center_offset is not None:
+            self['cen'] += self.center_offset
 
     def make_images(self):
         """

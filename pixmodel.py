@@ -15,7 +15,7 @@ import _fimage
 _tmap={'gauss':1,'exp':2,'dev':3}
 _emap={0:'ok',2**0:'invalid model',2**1:'determinant <= 0',2**2:'invalid nsub'}
 
-def model_image(model, dims, cen, cov, nsub=4, counts=1.0, order='c', dtype='f8'):
+def model_image(model, dims, cen, cov, nsub=1, counts=1.0, order='c', dtype='f8'):
     """
     Create in image with the specified model using sub-pixel integration
 
@@ -41,7 +41,7 @@ def model_image(model, dims, cen, cov, nsub=4, counts=1.0, order='c', dtype='f8'
 
     nsub: integer, optional
         The size of the sub-pixel grid used to integrate the model.  Default
-        is 4.  Send 1 for no sub-pixel integration.
+        is 1.  Send 1 for no sub-pixel integration.
 
     order: string
         Send either 'c' for C order or 'f' for fortran order.  By
